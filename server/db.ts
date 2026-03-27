@@ -1,7 +1,18 @@
-import { eq } from "drizzle-orm";
+import { eq, desc, and, gte, lte } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
-import { ENV } from './_core/env';
+import {
+  InsertUser,
+  users,
+  emailSignals,
+  fundamentalData,
+  fundamentalAnalysis,
+  externalViews,
+  viewConclusions,
+  tradeRecords,
+  tradeReviews,
+  dashboardConfigs,
+} from "../drizzle/schema";
+import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -56,8 +67,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       values.role = user.role;
       updateSet.role = user.role;
     } else if (user.openId === ENV.ownerOpenId) {
-      values.role = 'admin';
-      updateSet.role = 'admin';
+      values.role = "admin";
+      updateSet.role = "admin";
     }
 
     if (!values.lastSignedIn) {
@@ -84,9 +95,305 @@ export async function getUserByOpenId(openId: string) {
     return undefined;
   }
 
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+  const result = await db
+    .select()
+    .from(users)
+    .where(eq(users.openId, openId))
+    .limit(1);
 
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// ============ Email Signals ============
+export async function getEmailSignals(userId: number, limit = 20, offset = 0) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select()
+    .from(emailSignals)
+    .where(eq(emailSignals.userId, userId))
+    .orderBy(desc(emailSignals.createdAt))
+    .limit(limit)
+    .offset(offset);
+}
+
+export async function createEmailSignal(signal: typeof emailSignals.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const result = await db.insert(emailSignals).values(signal);
+  return result;
+}
+
+export async function updateEmailSignal(
+  id: number,
+  updates: Partial<typeof emailSignals.$inferInsert>
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.update(emailSignals).set(updates).where(eq(emailSignals.id, id));
+}
+
+// ============ Fundamental Analysis ============
+export async function getFundamentalAnalysis(userId: number, limit = 10, offset = 0) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select()
+    .from(fundamentalAnalysis)
+    .where(eq(fundamentalAnalysis.userId, userId))
+    .orderBy(desc(fundamentalAnalysis.createdAt))
+    .limit(limit)
+    .offset(offset);
+}
+
+export async function createFundamentalAnalysis(
+  analysis: typeof fundamentalAnalysis.$inferInsert
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.insert(fundamentalAnalysis).values(analysis);
+}
+
+// ============ Fundamental Data ============
+export async function getFundamentalData(
+  dataType?: string,
+  limit = 50,
+  offset = 0
+) {
+  const db = await getDb();
+  if (!db) return [];
+
+  if (dataType) {
+    return await db
+      .select()
+      .from(fundamentalData)
+      .where(eq(fundamentalData.dataType, dataType))
+      .orderBy(desc(fundamentalData.releaseDate))
+      .limit(limit)
+      .offset(offset);
+  }
+
+  return await db
+    .select()
+    .from(fundamentalData)
+    .orderBy(desc(fundamentalData.releaseDate))
+    .limit(limit)
+    .offset(offset);
+}
+
+export async function createFundamentalData(data: typeof fundamentalData.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.insert(fundamentalData).values(data);
+}
+
+// ============ External Views ============
+export async function getExternalViews(limit = 30, offset = 0) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select()
+    .from(externalViews)
+    .orderBy(desc(externalViews.publishDate))
+    .limit(limit)
+    .offset(offset);
+}
+
+export async function createExternalView(view: typeof externalViews.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.insert(externalViews).values(view);
+}
+
+// ============ View Conclusions ============
+export async function getViewConclusions(userId: number, limit = 10, offset = 0) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select()
+    .from(viewConclusions)
+    .where(eq(viewConclusions.userId, userId))
+    .orderBy(desc(viewConclusions.createdAt))
+    .limit(limit)
+    .offset(offset);
+}
+
+export async function createViewConclusion(
+  conclusion: typeof viewConclusions.$inferInsert
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.insert(viewConclusions).values(conclusion);
+}
+
+// ============ Trade Records ============
+export async function getTradeRecords(userId: number, limit = 20, offset = 0) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select()
+    .from(tradeRecords)
+    .where(eq(tradeRecords.userId, userId))
+    .orderBy(desc(tradeRecords.entryTime))
+    .limit(limit)
+    .offset(offset);
+}
+
+export async function getOpenTrades(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select()
+    .from(tradeRecords)
+    .where(
+      and(
+        eq(tradeRecords.userId, userId),
+        eq(tradeRecords.status, "open")
+      )
+    )
+    .orderBy(desc(tradeRecords.entryTime));
+}
+
+export async function createTradeRecord(record: typeof tradeRecords.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.insert(tradeRecords).values(record);
+}
+
+export async function updateTradeRecord(
+  id: number,
+  updates: Partial<typeof tradeRecords.$inferInsert>
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.update(tradeRecords).set(updates).where(eq(tradeRecords.id, id));
+}
+
+// ============ Trade Reviews ============
+export async function getTradeReviews(userId: number, limit = 20, offset = 0) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select()
+    .from(tradeReviews)
+    .where(eq(tradeReviews.userId, userId))
+    .orderBy(desc(tradeReviews.createdAt))
+    .limit(limit)
+    .offset(offset);
+}
+
+export async function getTradeReviewByTradeId(tradeId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db
+    .select()
+    .from(tradeReviews)
+    .where(eq(tradeReviews.tradeId, tradeId))
+    .limit(1);
+
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function createTradeReview(review: typeof tradeReviews.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.insert(tradeReviews).values(review);
+}
+
+export async function updateTradeReview(
+  id: number,
+  updates: Partial<typeof tradeReviews.$inferInsert>
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.update(tradeReviews).set(updates).where(eq(tradeReviews.id, id));
+}
+
+// ============ Dashboard Config ============
+export async function getDashboardConfig(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const result = await db
+    .select()
+    .from(dashboardConfigs)
+    .where(eq(dashboardConfigs.userId, userId))
+    .limit(1);
+
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function createOrUpdateDashboardConfig(
+  config: typeof dashboardConfigs.$inferInsert
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db
+    .insert(dashboardConfigs)
+    .values(config)
+    .onDuplicateKeyUpdate({
+      set: {
+        layout: config.layout,
+        widgets: config.widgets,
+        defaultTimeRange: config.defaultTimeRange,
+        showRiskWarning: config.showRiskWarning,
+      },
+    });
+}
+
+// ============ Statistics ============
+export async function getTradeStatistics(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+
+  const trades = await db
+    .select()
+    .from(tradeRecords)
+    .where(
+      and(
+        eq(tradeRecords.userId, userId),
+        eq(tradeRecords.status, "closed")
+      )
+    );
+
+  if (trades.length === 0) {
+    return {
+      totalTrades: 0,
+      winRate: 0,
+      totalProfitLoss: 0,
+      averageProfitLoss: 0,
+    };
+  }
+
+  const winCount = trades.filter((t) => t.profitLoss && Number(t.profitLoss) > 0).length;
+  const totalPL = trades.reduce((sum, t) => {
+    const pl = t.profitLoss ? Number(t.profitLoss) : 0;
+    return sum + pl;
+  }, 0);
+
+  return {
+    totalTrades: trades.length,
+    winRate: Math.round((winCount / trades.length) * 100),
+    totalProfitLoss: totalPL,
+    averageProfitLoss: totalPL / trades.length,
+  };
+}

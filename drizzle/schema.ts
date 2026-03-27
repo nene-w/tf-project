@@ -1,17 +1,21 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import {
+  int,
+  mysqlEnum,
+  mysqlTable,
+  text,
+  timestamp,
+  varchar,
+  decimal,
+  boolean,
+  json,
+} from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
- * Extend this file with additional tables as your product grows.
- * Columns use camelCase to match both database fields and generated types.
+ * Extended with treasury trading specific fields.
  */
 export const users = mysqlTable("users", {
-  /**
-   * Surrogate primary key. Auto-incremented numeric value managed by the database.
-   * Use this for relations between tables.
-   */
   id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
@@ -25,4 +29,244 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+/**
+ * 邮件交易信号表
+ * 存储从邮件中解析出的交易信号
+ */
+export const emailSignals = mysqlTable("email_signals", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  // 信号类型：买入、卖出、观望等
+  signalType: mysqlEnum("signalType", ["buy", "sell", "hold", "unknown"]).notNull(),
+  // 合约品种（如 T2406、T2409 等）
+  contract: varchar("contract", { length: 50 }).notNull(),
+  // 建议价格
+  price: decimal("price", { precision: 10, scale: 4 }),
+  // 信号来源邮件主题
+  emailSubject: text("emailSubject"),
+  // 信号来源邮件内容摘要
+  emailContent: text("emailContent"),
+  // 信号发出时间
+  signalTime: timestamp("signalTime"),
+  // 信号置信度（0-100）
+  confidence: int("confidence").default(50),
+  // 信号状态：待处理、已执行、已过期等
+  status: mysqlEnum("status", ["pending", "executed", "expired", "cancelled"]).default("pending"),
+  // 用户对该信号的备注
+  userNotes: text("userNotes"),
+  // 信号的原始邮件 ID（用于追踪）
+  emailId: varchar("emailId", { length: 255 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type EmailSignal = typeof emailSignals.$inferSelect;
+export type InsertEmailSignal = typeof emailSignals.$inferInsert;
+
+/**
+ * 国债基本面数据表
+ * 存储利率、经济指标、政策等基本面信息
+ */
+export const fundamentalData = mysqlTable("fundamental_data", {
+  id: int("id").autoincrement().primaryKey(),
+  // 数据类型：利率、GDP、CPI、政策等
+  dataType: varchar("dataType", { length: 100 }).notNull(),
+  // 具体指标名称
+  indicator: varchar("indicator", { length: 255 }).notNull(),
+  // 数值
+  value: decimal("value", { precision: 15, scale: 4 }),
+  // 单位
+  unit: varchar("unit", { length: 50 }),
+  // 数据发布时间
+  releaseDate: timestamp("releaseDate"),
+  // 数据有效期
+  effectiveDate: timestamp("effectiveDate"),
+  // 数据来源
+  source: varchar("source", { length: 255 }),
+  // 数据描述
+  description: text("description"),
+  // 是否已用于分析
+  analyzed: boolean("analyzed").default(false),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type FundamentalData = typeof fundamentalData.$inferSelect;
+export type InsertFundamentalData = typeof fundamentalData.$inferInsert;
+
+/**
+ * 基本面分析报告表
+ * 存储 LLM 生成的基本面分析和建议
+ */
+export const fundamentalAnalysis = mysqlTable("fundamental_analysis", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  // 分析标题
+  title: varchar("title", { length: 255 }).notNull(),
+  // 分析内容（Markdown 格式）
+  content: text("content").notNull(),
+  // 交易建议
+  recommendation: mysqlEnum("recommendation", ["strong_buy", "buy", "hold", "sell", "strong_sell"]).notNull(),
+  // 分析涉及的关键指标（JSON 数组）
+  keyIndicators: json("keyIndicators"),
+  // 风险评估
+  riskLevel: mysqlEnum("riskLevel", ["low", "medium", "high"]).default("medium"),
+  // 分析有效期
+  validUntil: timestamp("validUntil"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type FundamentalAnalysis = typeof fundamentalAnalysis.$inferSelect;
+export type InsertFundamentalAnalysis = typeof fundamentalAnalysis.$inferInsert;
+
+/**
+ * 外部观点表
+ * 存储从分析师、公众号等外部平台抓取的观点
+ */
+export const externalViews = mysqlTable("external_views", {
+  id: int("id").autoincrement().primaryKey(),
+  // 观点来源类型：分析师、公众号、研报等
+  sourceType: varchar("sourceType", { length: 100 }).notNull(),
+  // 观点来源名称
+  sourceName: varchar("sourceName", { length: 255 }).notNull(),
+  // 观点作者
+  author: varchar("author", { length: 255 }),
+  // 观点标题
+  title: varchar("title", { length: 255 }).notNull(),
+  // 观点内容摘要
+  summary: text("summary").notNull(),
+  // 观点完整内容
+  fullContent: text("fullContent"),
+  // 观点观看/点赞数
+  engagement: int("engagement").default(0),
+  // 观点发布时间
+  publishDate: timestamp("publishDate"),
+  // 观点链接
+  url: varchar("url", { length: 500 }),
+  // 观点情感倾向：看涨、看跌、中立
+  sentiment: mysqlEnum("sentiment", ["bullish", "bearish", "neutral"]).default("neutral"),
+  // 观点相关合约
+  relatedContracts: json("relatedContracts"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ExternalView = typeof externalViews.$inferSelect;
+export type InsertExternalView = typeof externalViews.$inferInsert;
+
+/**
+ * 外部观点综合结论表
+ * 存储对多个外部观点的综合分析和结论
+ */
+export const viewConclusions = mysqlTable("view_conclusions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  // 结论标题
+  title: varchar("title", { length: 255 }).notNull(),
+  // 综合结论内容
+  conclusion: text("conclusion").notNull(),
+  // 包含的外部观点 ID（JSON 数组）
+  viewIds: json("viewIds"),
+  // 综合观点倾向
+  overallSentiment: mysqlEnum("overallSentiment", ["bullish", "bearish", "neutral"]).default("neutral"),
+  // 观点一致性评分（0-100）
+  consensusScore: int("consensusScore").default(50),
+  // 分析有效期
+  validUntil: timestamp("validUntil"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ViewConclusion = typeof viewConclusions.$inferSelect;
+export type InsertViewConclusion = typeof viewConclusions.$inferInsert;
+
+/**
+ * 交易记录表
+ * 存储用户的真实交易数据
+ */
+export const tradeRecords = mysqlTable("trade_records", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  // 合约品种
+  contract: varchar("contract", { length: 50 }).notNull(),
+  // 交易方向：买入、卖出
+  direction: mysqlEnum("direction", ["long", "short"]).notNull(),
+  // 开仓价格
+  entryPrice: decimal("entryPrice", { precision: 10, scale: 4 }).notNull(),
+  // 开仓时间
+  entryTime: timestamp("entryTime").notNull(),
+  // 平仓价格
+  exitPrice: decimal("exitPrice", { precision: 10, scale: 4 }),
+  // 平仓时间
+  exitTime: timestamp("exitTime"),
+  // 交易手数
+  quantity: int("quantity").notNull(),
+  // 盈亏（单位：点或元）
+  profitLoss: decimal("profitLoss", { precision: 15, scale: 4 }),
+  // 盈亏率（百分比）
+  profitLossRate: decimal("profitLossRate", { precision: 5, scale: 2 }),
+  // 交易状态：开仓、平仓
+  status: mysqlEnum("status", ["open", "closed"]).notNull(),
+  // 交易备注
+  notes: text("notes"),
+  // 交易相关的信号 ID（可能来自邮件或分析）
+  relatedSignalId: int("relatedSignalId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TradeRecord = typeof tradeRecords.$inferSelect;
+export type InsertTradeRecord = typeof tradeRecords.$inferInsert;
+
+/**
+ * 交易复盘分析表
+ * 存储对单笔交易的详细复盘分析
+ */
+export const tradeReviews = mysqlTable("trade_reviews", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  // 关联的交易记录 ID
+  tradeId: int("tradeId").notNull(),
+  // 复盘标题
+  title: varchar("title", { length: 255 }).notNull(),
+  // 交易优点分析
+  strengths: text("strengths"),
+  // 交易缺点分析
+  weaknesses: text("weaknesses"),
+  // 改进建议
+  improvements: text("improvements"),
+  // 整体评分（0-100）
+  overallScore: int("overallScore").default(50),
+  // 关键学习点
+  keyLearnings: text("keyLearnings"),
+  // 复盘状态：草稿、已完成
+  status: mysqlEnum("status", ["draft", "completed"]).default("draft"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TradeReview = typeof tradeReviews.$inferSelect;
+export type InsertTradeReview = typeof tradeReviews.$inferInsert;
+
+/**
+ * 看板配置表
+ * 存储用户的个性化看板配置
+ */
+export const dashboardConfigs = mysqlTable("dashboard_configs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  // 看板布局配置（JSON）
+  layout: json("layout"),
+  // 显示的小部件（JSON 数组）
+  widgets: json("widgets"),
+  // 默认时间范围
+  defaultTimeRange: varchar("defaultTimeRange", { length: 50 }).default("7d"),
+  // 是否显示风险提示
+  showRiskWarning: boolean("showRiskWarning").default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type DashboardConfig = typeof dashboardConfigs.$inferSelect;
+export type InsertDashboardConfig = typeof dashboardConfigs.$inferInsert;
