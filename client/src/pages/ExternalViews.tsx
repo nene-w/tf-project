@@ -28,14 +28,14 @@ export default function ExternalViews() {
       <div className="border-b border-border/50 backdrop-blur-sm sticky top-0 z-40">
         <div className="container flex items-center justify-between h-16">
           <div>
-            <h1 className="text-2xl font-bold">External Views</h1>
+            <h1 className="text-2xl font-bold">外部观点</h1>
             <p className="text-sm text-muted-foreground">
-              Aggregated analyst opinions and market consensus
+              汇总分析师观点和市场共识
             </p>
           </div>
           <Button className="button-primary">
             <Plus className="w-4 h-4 mr-2" />
-            Add View
+            添加观点
           </Button>
         </div>
       </div>
@@ -46,8 +46,8 @@ export default function ExternalViews() {
           {!views || views.length === 0 ? (
             <Card className="card-elegant">
               <div className="h-32 flex flex-col items-center justify-center">
-                <p className="text-muted-foreground mb-4">No views available</p>
-                <Button className="button-primary">Add First View</Button>
+                <p className="text-muted-foreground mb-4">暂无观点数据</p>
+                <Button className="button-primary">添加第一个观点</Button>
               </div>
             </Card>
           ) : (
@@ -58,7 +58,7 @@ export default function ExternalViews() {
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="font-semibold">{view.title}</h3>
                       <Badge className={getSentimentColor(view.sentiment || "neutral")}>
-                        {(view.sentiment || "neutral").toUpperCase()}
+                        {view.sentiment === 'bullish' ? '看涨' : view.sentiment === 'bearish' ? '看跌' : '中性'}
                       </Badge>
                     </div>
                     <p className="text-sm text-muted-foreground mb-2">
@@ -79,7 +79,7 @@ export default function ExternalViews() {
 
                 {view.relatedContracts && (
                   <div className="pt-4 border-t border-border/50">
-                    <p className="text-sm font-semibold mb-2">Related Contracts</p>
+                    <p className="text-sm font-semibold mb-2">相关合约</p>
                     <div className="flex flex-wrap gap-2">
                       {(view.relatedContracts as string[]).map((contract) => (
                         <Badge key={contract} variant="secondary">

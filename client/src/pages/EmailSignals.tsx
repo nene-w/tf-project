@@ -45,14 +45,14 @@ export default function EmailSignals() {
       <div className="border-b border-border/50 backdrop-blur-sm sticky top-0 z-40">
         <div className="container flex items-center justify-between h-16">
           <div>
-            <h1 className="text-2xl font-bold">Email Trading Signals</h1>
+            <h1 className="text-2xl font-bold">邮件交易信号</h1>
             <p className="text-sm text-muted-foreground">
-              Monitor and manage trading signals from email sources
+              监控和分析来自邮件的交易信号
             </p>
           </div>
           <Button className="button-primary">
             <Plus className="w-4 h-4 mr-2" />
-            New Signal
+            添加信号
           </Button>
         </div>
       </div>
@@ -72,7 +72,7 @@ export default function EmailSignals() {
                     : "bg-muted text-muted-foreground hover:bg-muted/80"
                 }`}
               >
-                {f.charAt(0).toUpperCase() + f.slice(1)}
+                {f === 'all' ? '全部' : f === 'pending' ? '待执行' : '已执行'}
               </button>
             ))}
           </div>
@@ -83,14 +83,14 @@ export default function EmailSignals() {
           {isLoading ? (
             <Card className="card-elegant">
               <div className="h-20 flex items-center justify-center">
-                <p className="text-muted-foreground">Loading signals...</p>
+                <p className="text-muted-foreground">加载中...</p>
               </div>
             </Card>
           ) : filteredSignals.length === 0 ? (
             <Card className="card-elegant">
               <div className="h-32 flex flex-col items-center justify-center">
-                <p className="text-muted-foreground mb-4">No signals found</p>
-                <Button className="button-primary">Create First Signal</Button>
+                <p className="text-muted-foreground mb-4">暂无交易信号</p>
+                <Button className="button-primary">添加第一个信号</Button>
               </div>
             </Card>
           ) : (
@@ -105,13 +105,10 @@ export default function EmailSignals() {
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="font-semibold">{signal.contract}</h3>
                         <Badge className={getSignalColor(signal.signalType)}>
-                          {signal.signalType.toUpperCase()}
+                          {signal.signalType === 'buy' ? '买入' : signal.signalType === 'sell' ? '卖出' : '持仓'}
                         </Badge>
                         <Badge variant="outline">
-                          {signal.status
-                            ? signal.status.charAt(0).toUpperCase() +
-                              signal.status.slice(1)
-                            : "Unknown"}
+                          {signal.status === 'pending' ? '待执行' : signal.status === 'executed' ? '已执行' : '未知'}
                         </Badge>
                       </div>
                       {signal.emailSubject && (
@@ -122,23 +119,23 @@ export default function EmailSignals() {
                       <div className="flex items-center gap-4 text-sm">
                         {signal.price && (
                           <span>
-                            Price: <span className="font-semibold">{signal.price}</span>
+                            价格: <span className="font-semibold">{signal.price}</span>
                           </span>
                         )}
                         <span>
-                          Confidence:{" "}
+                          置信度:{" "}
                           <span className="font-semibold">{signal.confidence}%</span>
                         </span>
                         <span className="text-muted-foreground">
                           {signal.signalTime
-                            ? new Date(signal.signalTime).toLocaleDateString()
-                            : "N/A"}
+                            ? new Date(signal.signalTime).toLocaleDateString('zh-CN')
+                            : "未知"}
                         </span>
                       </div>
                     </div>
                   </div>
                   <Button variant="outline" size="sm">
-                    View Details
+                    查看详情
                   </Button>
                 </div>
               </Card>

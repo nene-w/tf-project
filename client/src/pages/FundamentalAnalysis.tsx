@@ -52,9 +52,9 @@ export default function FundamentalAnalysis() {
       <div className="border-b border-border/50 backdrop-blur-sm sticky top-0 z-40">
         <div className="container flex items-center justify-between h-16">
           <div>
-            <h1 className="text-2xl font-bold">Fundamental Analysis</h1>
+            <h1 className="text-2xl font-bold">基本面分析</h1>
             <p className="text-sm text-muted-foreground">
-              AI-powered treasury market analysis and insights
+              AI 驱动的国债市场分析和洞察
             </p>
           </div>
           <Button
@@ -63,7 +63,7 @@ export default function FundamentalAnalysis() {
             disabled={isGenerating}
           >
             <Plus className="w-4 h-4 mr-2" />
-            {isGenerating ? "Generating..." : "Generate Analysis"}
+            {isGenerating ? "生成中..." : "生成分析"}
           </Button>
         </div>
       </div>
@@ -75,10 +75,10 @@ export default function FundamentalAnalysis() {
             <Card className="card-elegant">
               <div className="h-40 flex flex-col items-center justify-center">
                 <p className="text-muted-foreground mb-4">
-                  No analyses generated yet
+                  暂无分析报告
                 </p>
                 <Button className="button-primary" onClick={handleGenerate}>
-                  Generate First Analysis
+                  生成第一个分析
                 </Button>
               </div>
             </Card>
@@ -97,15 +97,10 @@ export default function FundamentalAnalysis() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge className={getRecommendationColor(analysis.recommendation)}>
-                        {analysis.recommendation
-                          .replace(/_/g, " ")
-                          .toUpperCase()}
+                        {analysis.recommendation === 'strong_buy' ? '强烈买入' : analysis.recommendation === 'buy' ? '买入' : analysis.recommendation === 'hold' ? '持仓' : analysis.recommendation === 'sell' ? '卖出' : '强烈卖出'}
                       </Badge>
                       <Badge variant="outline">
-                        {analysis.riskLevel
-                          ? analysis.riskLevel.charAt(0).toUpperCase() +
-                            analysis.riskLevel.slice(1)
-                          : "Medium"}
+                        {analysis.riskLevel === 'high' ? '高风险' : analysis.riskLevel === 'medium' ? '中风险' : '低风险'}
                       </Badge>
                     </div>
                   </div>
@@ -122,7 +117,7 @@ export default function FundamentalAnalysis() {
                 {/* Key Indicators */}
                 {analysis.keyIndicators && (
                   <div className="pt-4 border-t border-border/50">
-                    <p className="text-sm font-semibold mb-3">Key Indicators</p>
+                    <p className="text-sm font-semibold mb-3">关键指标</p>
                     <div className="flex flex-wrap gap-2">
                       {(analysis.keyIndicators as string[]).map((indicator) => (
                         <Badge key={indicator} variant="secondary">

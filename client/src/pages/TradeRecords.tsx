@@ -38,14 +38,14 @@ export default function TradeRecords() {
       <div className="border-b border-border/50 backdrop-blur-sm sticky top-0 z-40">
         <div className="container flex items-center justify-between h-16">
           <div>
-            <h1 className="text-2xl font-bold">Trade Records</h1>
+            <h1 className="text-2xl font-bold">交易记录</h1>
             <p className="text-sm text-muted-foreground">
-              Monitor and manage your trading positions
+              监控和管理你的交易池位
             </p>
           </div>
           <Button className="button-primary" onClick={() => setShowForm(!showForm)}>
             <Plus className="w-4 h-4 mr-2" />
-            New Trade
+            新建交易
           </Button>
         </div>
       </div>
@@ -54,33 +54,33 @@ export default function TradeRecords() {
         {/* Form */}
         {showForm && (
           <Card className="card-elegant mb-8">
-            <h3 className="text-lg font-semibold mb-4">Create New Trade</h3>
+            <h3 className="text-lg font-semibold mb-4">新建交易</h3>
             <div className="grid grid-cols-2 gap-4">
               <input
                 type="text"
-                placeholder="Contract (e.g., T2406)"
+                placeholder="合约代码 (如 T2406)"
                 className="input-elegant"
               />
               <select className="input-elegant">
-                <option>Long</option>
-                <option>Short</option>
+                <option>做多</option>
+                <option>做空</option>
               </select>
-              <input type="number" placeholder="Entry Price" className="input-elegant" />
-              <input type="number" placeholder="Quantity" className="input-elegant" />
+              <input type="number" placeholder="开仓价格" className="input-elegant" />
+              <input type="number" placeholder="数量" className="input-elegant" />
               <input type="datetime-local" className="input-elegant col-span-2" />
               <textarea
-                placeholder="Notes"
+                placeholder="备注"
                 className="input-elegant col-span-2"
                 rows={3}
               />
             </div>
             <div className="flex gap-2 mt-4">
-              <Button className="button-primary">Create Trade</Button>
+              <Button className="button-primary">新建交易</Button>
               <Button
                 variant="outline"
                 onClick={() => setShowForm(false)}
               >
-                Cancel
+                取消
               </Button>
             </div>
           </Card>
@@ -91,9 +91,9 @@ export default function TradeRecords() {
           {!trades || trades.length === 0 ? (
             <Card className="card-elegant">
               <div className="h-32 flex flex-col items-center justify-center">
-                <p className="text-muted-foreground mb-4">No trades recorded yet</p>
+                <p className="text-muted-foreground mb-4">暂无交易记录</p>
                 <Button className="button-primary" onClick={() => setShowForm(true)}>
-                  Create First Trade
+                  新建第一个交易
                 </Button>
               </div>
             </Card>
@@ -109,38 +109,38 @@ export default function TradeRecords() {
                       <div className="flex items-center gap-3 mb-2">
                         <h3 className="font-semibold">{trade.contract}</h3>
                         <Badge className={trade.direction === "long" ? "bg-green-500/10 text-green-600" : "bg-red-500/10 text-red-600"}>
-                          {trade.direction.toUpperCase()}
+                          {trade.direction === 'long' ? '做多' : '做空'}
                         </Badge>
                         <Badge className={getStatusColor(trade.status)}>
-                          {trade.status.charAt(0).toUpperCase() + trade.status.slice(1)}
+                          {trade.status === 'open' ? '持仓' : '已平仓'}
                         </Badge>
                       </div>
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
-                          <p className="text-muted-foreground">Entry Price</p>
+                          <p className="text-muted-foreground">开仓价格</p>
                           <p className="font-semibold">{trade.entryPrice}</p>
                         </div>
                         <div>
-                          <p className="text-muted-foreground">Quantity</p>
+                          <p className="text-muted-foreground">数量</p>
                           <p className="font-semibold">{trade.quantity}</p>
                         </div>
                         {trade.exitPrice && (
                           <div>
-                            <p className="text-muted-foreground">Exit Price</p>
+                            <p className="text-muted-foreground">平仓价格</p>
                             <p className="font-semibold">{trade.exitPrice}</p>
                           </div>
                         )}
                         <div>
-                          <p className="text-muted-foreground">Entry Time</p>
+                          <p className="text-muted-foreground">开仓时间</p>
                           <p className="font-semibold">
-                            {new Date(trade.entryTime).toLocaleDateString()}
+                            {new Date(trade.entryTime).toLocaleDateString('zh-CN')}
                           </p>
                         </div>
                       </div>
                     </div>
                   </div>
                   <Button variant="outline" size="sm">
-                    View Details
+                    查看详情
                   </Button>
                 </div>
               </div>
