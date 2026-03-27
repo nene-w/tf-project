@@ -92,6 +92,36 @@ export const appRouter = router({
           userNotes: input.userNotes,
         });
       }),
+
+    fetchFromEmail: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        const signals = await fetchEmailSignals();
+        let newSignals = 0;
+
+        for (const signal of signals) {
+          const existing = await getEmailSignals(ctx.user.id, 1000, 0);
+          const isDuplicate = existing.some(
+            (s) => s.emailId === signal.emailId
+          );
+
+          if (!isDuplicate) {
+            await createEmailSignal({
+              userId: ctx.user.id,
+              signalType: signal.signalType,
+              contract: signal.contract,
+              price: signal.price,
+              emailSubject: signal.emailSubject,
+              emailContent: signal.emailContent,
+              signalTime: signal.signalTime,
+              confidence: signal.confidence,
+              emailId: signal.emailId,
+            });
+            newSignals++;
+          }
+        }
+
+        return { success: true, newSignals, totalSignals: signals.length };
+      }),
   }),
 
   // ============ Fundamental Analysis ============

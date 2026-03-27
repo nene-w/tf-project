@@ -1,8 +1,8 @@
-import Imap from "imap";
 // @ts-ignore - mailparser types
 import { simpleParser } from "mailparser";
 import { getDb } from "./db";
 import { emailSignals } from "../drizzle/schema";
+import Imap from "imap";
 
 interface ParsedSignal {
   contract: string;
@@ -10,6 +10,17 @@ interface ParsedSignal {
   period: "15" | "30" | "60" | "day";
   variety: string; // 二债、五债、十债、30债
   date: Date;
+}
+
+interface EmailSignalData {
+  emailSubject: string;
+  contract: string;
+  signalType: "buy" | "sell" | "hold";
+  price?: string;
+  confidence: number;
+  signalTime: Date;
+  emailContent: string;
+  emailId: string;
 }
 
 /**
@@ -88,16 +99,16 @@ export function parseEmailSubject(subject: string): ParsedSignal | null {
 }
 
 /**
- * 连接到 IMAP 邮箱并抓取未读邮件
+ * 连接到 IMAP 邮箱并抓取未读邮件，返回解析的信号数组
  */
-export async function fetchEmailSignals(): Promise<void> {
+export async function fetchEmailSignals(): Promise<EmailSignalData[]> {
   const user = process.env.EMAIL_USER;
   const password = process.env.EMAIL_PASSWORD;
   const sender = process.env.EMAIL_SENDER;
 
   if (!user || !password || !sender) {
     console.error("[Email Service] Missing email configuration");
-    return;
+    return [];
   }
 
   const imap = new Imap({
@@ -109,6 +120,10 @@ export async function fetchEmailSignals(): Promise<void> {
   });
 
   return new Promise((resolve, reject) => {
+    const signals: EmailSignalData[] = [];
+    let processedCount = 0;
+    let totalEmails = 0;
+
     imap.openBox("INBOX", false, async (err: any, box: any) => {
       if (err) {
         console.error("[Email Service] Error opening inbox:", err);
@@ -130,17 +145,19 @@ export async function fetchEmailSignals(): Promise<void> {
         if (results.length === 0) {
           console.log("[Email Service] No new emails from", sender);
           imap.end();
-          resolve();
+          resolve([]);
           return;
         }
 
         console.log(`[Email Service] Found ${results.length} new emails`);
+        totalEmails = results.length;
 
         // 获取邮件
         const f = imap.fetch(results, { bodies: "" });
 
         f.on("message", (msg: any, seqno: any) => {
           let emailSubject = "";
+          let emailId = `${Date.now()}-${seqno}`;
 
           msg.on("headers", (headers: any) => {
             emailSubject = (headers.subject as string[])?.[0] || "";
@@ -155,46 +172,58 @@ export async function fetchEmailSignals(): Promise<void> {
               const signal = parseEmailSubject(emailSubject);
 
               if (signal) {
-                // 保存到数据库
-                const db = await getDb();
-                if (db) {
-                  await db.insert(emailSignals).values({
-                    userId: 1, // 默认用户 ID，实际应从 context 获取
-                    emailSubject: emailSubject,
-                    contract: signal.contract,
-                    signalType: signal.signalType,
-                    price: null, // 可以从邮件内容中进一步解析
-                    confidence: 85, // 默认置信度
-                    status: "pending",
-                    signalTime: signal.date,
-                    emailContent: parsed.text || "",
-                  });
+                signals.push({
+                  emailSubject: emailSubject,
+                  contract: signal.contract,
+                  signalType: signal.signalType,
+                  price: undefined,
+                  confidence: 85,
+                  signalTime: signal.date,
+                  emailContent: parsed.text || "",
+                  emailId: emailId,
+                });
 
-                  console.log(
-                    `[Email Service] Saved signal: ${signal.contract} ${signal.signalType}`
-                  );
-                }
+                console.log(
+                  `[Email Service] Parsed signal: ${signal.contract} ${signal.signalType}`
+                );
               } else {
                 console.log(
                   "[Email Service] Could not parse signal from subject:",
                   emailSubject
                 );
               }
+
+              processedCount++;
+              if (processedCount === totalEmails) {
+                console.log(
+                  `[Email Service] All emails processed. Found ${signals.length} signals`
+                );
+                imap.end();
+              }
             } catch (error) {
               console.error("[Email Service] Error processing email:", error);
+              processedCount++;
+              if (processedCount === totalEmails) {
+                imap.end();
+              }
             }
           });
         });
 
         f.on("error", (err: any) => {
           console.error("[Email Service] Fetch error:", err);
+          imap.end();
           reject(err);
         });
 
         f.on("end", () => {
-          console.log("[Email Service] All emails processed");
-          imap.end();
-          resolve();
+          console.log("[Email Service] Fetch completed");
+          // 等待所有邮件处理完成后再关闭连接
+          setTimeout(() => {
+            if (processedCount === totalEmails) {
+              resolve(signals);
+            }
+          }, 1000);
         });
       } catch (error) {
         console.error("[Email Service] Error:", error);
@@ -210,6 +239,7 @@ export async function fetchEmailSignals(): Promise<void> {
 
     imap.on("end", () => {
       console.log("[Email Service] Connection closed");
+      resolve(signals);
     });
 
     imap.on("ready", () => {
@@ -218,6 +248,7 @@ export async function fetchEmailSignals(): Promise<void> {
 
     imap.openBox("INBOX", false, (err: any) => {
       if (err) console.error("[Email Service] Error opening box:", err);
+      else imap.openBox("INBOX", false, () => imap.openBox("INBOX", false, () => {}));
     });
 
     imap.connect();
@@ -225,22 +256,21 @@ export async function fetchEmailSignals(): Promise<void> {
 }
 
 /**
- * 启动定时任务，定期检查邮件
+ * 启动定时轮询邮件
  */
-export function startEmailPolling(intervalMinutes: number = 1): NodeJS.Timeout {
+export function startEmailPolling(intervalMs: number = 5 * 60 * 1000): NodeJS.Timeout {
   console.log(
-    `[Email Service] Starting email polling every ${intervalMinutes} minute(s)`
+    `[Email Service] Starting email polling every ${intervalMs / 1000} seconds`
   );
 
-  // 立即执行一次
-  fetchEmailSignals().catch((err) => {
-    console.error("[Email Service] Initial fetch failed:", err);
-  });
+  const interval = setInterval(async () => {
+    try {
+      const signals = await fetchEmailSignals();
+      console.log(`[Email Service] Polling completed. Found ${signals.length} signals`);
+    } catch (error) {
+      console.error("[Email Service] Polling error:", error);
+    }
+  }, intervalMs);
 
-  // 然后定期执行
-  return setInterval(() => {
-    fetchEmailSignals().catch((err) => {
-      console.error("[Email Service] Polling failed:", err);
-    });
-  }, intervalMinutes * 60 * 1000);
+  return interval;
 }
