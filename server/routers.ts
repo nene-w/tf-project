@@ -230,6 +230,48 @@ export const appRouter = router({
         return await getExternalViews(input.limit, input.offset);
       }),
 
+    scrapeHibor: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        try {
+          const { scrapeAllResearch } = await import('./hiborScraper');
+          const reports = await scrapeAllResearch();
+          
+          let createdCount = 0;
+          for (const report of reports) {
+            try {
+              await createExternalView({
+                sourceType: 'research_report',
+                sourceName: report.source,
+                title: report.title,
+                summary: report.summary || report.title,
+                fullContent: report.summary,
+                sentiment: 'neutral',
+                url: report.url,
+                relatedContracts: report.keywords,
+              });
+              createdCount++;
+            } catch (error) {
+              console.error('[ExternalViews] Error creating view:', error);
+            }
+          }
+          
+          return {
+            success: true,
+            totalReports: reports.length,
+            createdViews: createdCount,
+            message: `成功抶取 ${reports.length} 篇研报，创建 ${createdCount} 条观点记录`
+          };
+        } catch (error) {
+          console.error('[ExternalViews] Error scraping Hibor:', error);
+          return {
+            success: false,
+            totalReports: 0,
+            createdViews: 0,
+            message: '抶取失败，请稍后重试'
+          };
+        }
+      }),
+
     create: protectedProcedure
       .input(
         z.object({
@@ -265,6 +307,70 @@ export const appRouter = router({
       .input(z.object({ limit: z.number().default(10), offset: z.number().default(0) }))
       .query(async ({ input, ctx }) => {
         return await getViewConclusions(ctx.user.id, input.limit, input.offset);
+      }),
+
+    autoAnalyze: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        try {
+          const recentViews = await getExternalViews(30, 0);
+          
+          if (!recentViews || recentViews.length === 0) {
+            return {
+              success: false,
+              message: 'no views available'
+            };
+          }
+
+          const viewsContext = recentViews
+            .map((v) => `Source: ${v.sourceName}\nTitle: ${v.title}\nSummary: ${v.summary}`)
+            .join('\n---\n');
+
+          const response = await invokeLLM({
+            messages: [
+              {
+                role: 'system',
+                content: 'You are a professional treasury futures analyst. Synthesize multiple research reports and views into a coherent conclusion. Focus on market consensus, main risks, and trading recommendations.'
+              },
+              {
+                role: 'user',
+                content: `Generate a comprehensive conclusion based on these research reports and views:\n\n${viewsContext}`
+              }
+            ]
+          });
+
+          const conclusion = typeof response.choices[0]?.message.content === 'string' 
+            ? response.choices[0].message.content 
+            : 'Unable to generate conclusion';
+
+          const bullishCount = recentViews.filter(v => v.sentiment === 'bullish').length;
+          const bearishCount = recentViews.filter(v => v.sentiment === 'bearish').length;
+          const overallSentiment = bullishCount > bearishCount ? 'bullish' : bearishCount > bullishCount ? 'bearish' : 'neutral';
+          const consensusScore = Math.round((Math.max(bullishCount, bearishCount) / recentViews.length) * 100);
+
+          const viewIds = recentViews.map(v => v.id);
+          await createViewConclusion({
+            userId: ctx.user.id,
+            title: `Auto Analysis - ${new Date().toLocaleDateString('zh-CN')}`,
+            conclusion,
+            overallSentiment,
+            consensusScore,
+            viewIds: viewIds as any
+          });
+
+          return {
+            success: true,
+            message: `Successfully generated conclusion based on ${recentViews.length} views with ${consensusScore}% consensus`,
+            conclusion,
+            overallSentiment,
+            consensusScore
+          };
+        } catch (error) {
+          console.error('[ViewConclusions] Error in autoAnalyze:', error);
+          return {
+            success: false,
+            message: 'Analysis failed, please try again later'
+          };
+        }
       }),
 
     generate: protectedProcedure

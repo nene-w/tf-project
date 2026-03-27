@@ -1,14 +1,33 @@
 // @ts-nocheck
 import { trpc } from "@/lib/trpc";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Plus, ExternalLink } from "lucide-react";
+  import { Card } from "@/components/ui/card";
+  import { Badge } from "@/components/ui/badge";
+  import { Button } from "@/components/ui/button";
+  import { Plus, ExternalLink, Sparkles } from "lucide-react";
 
 export default function ExternalViews() {
-  const { data: views } = trpc.externalViews.list.useQuery({
+  const { data: views, refetch } = trpc.externalViews.list.useQuery({
     limit: 50,
     offset: 0,
+  });
+
+  const scrapeHiborMutation = trpc.externalViews.scrapeHibor.useMutation({
+    onSuccess: (data) => {
+      refetch();
+      alert(`成功抶取！共获取 ${data.totalReports} 篇研报，创建 ${data.createdViews} 条观点记录`);
+    },
+    onError: (error) => {
+      alert('抶取失败，请稍后重试');
+    }
+  });
+
+  const autoAnalyzeMutation = trpc.viewConclusions.autoAnalyze.useMutation({
+    onSuccess: (data) => {
+      alert(`成功生成结论！\n\n${data.conclusion}`);
+    },
+    onError: (error) => {
+      alert('AI 分析失败，请稍后重试');
+    }
   });
 
   const getSentimentColor = (sentiment: string) => {
@@ -33,10 +52,29 @@ export default function ExternalViews() {
               汇总分析师观点和市场共识
             </p>
           </div>
-          <Button className="button-primary">
-            <Plus className="w-4 h-4 mr-2" />
-            添加观点
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              className="button-primary"
+              onClick={() => scrapeHiborMutation.mutate()}
+              disabled={scrapeHiborMutation.isPending}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              {scrapeHiborMutation.isPending ? '抶取中...' : '抶取慧博研报'}
+            </Button>
+            <Button 
+              className="button-primary"
+              onClick={() => autoAnalyzeMutation.mutate()}
+              disabled={autoAnalyzeMutation.isPending}
+              variant="outline"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              {autoAnalyzeMutation.isPending ? 'AI 分析中...' : 'AI 自动分析'}
+            </Button>
+            <Button className="button-primary" variant="outline">
+              <Plus className="w-4 h-4 mr-2" />
+              添加观点
+            </Button>
+          </div>
         </div>
       </div>
 
