@@ -28,6 +28,7 @@ import {
   getTradeStatistics,
 } from "./db";
 import { invokeLLM } from "./_core/llm";
+import { fetchEmailSignals, startEmailPolling } from "./emailService";
 
 export const appRouter = router({
   system: systemRouter,
@@ -447,6 +448,49 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         const { id, ...updates } = input;
         return await updateTradeReview(id, updates as any);
+      }),
+  }),
+
+  // ============ Email Automation ============
+  emailAutomation: router({
+    fetchNow: protectedProcedure.mutation(async ({ ctx }) => {
+      try {
+        await fetchEmailSignals();
+        return {
+          success: true,
+          message: "邮件抓取成功",
+        };
+      } catch (error) {
+        console.error("[Email Automation] Fetch failed:", error);
+        return {
+          success: false,
+          message: "邮件抓取失败",
+          error: error instanceof Error ? error.message : "未知错误",
+        };
+      }
+    }),
+
+    startPolling: protectedProcedure
+      .input(
+        z.object({
+          intervalMinutes: z.number().min(1).max(60).default(1),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        try {
+          startEmailPolling(input.intervalMinutes);
+          return {
+            success: true,
+            message: `已启动每 ${input.intervalMinutes} 分钟检查一次邮件`,
+          };
+        } catch (error) {
+          console.error("[Email Automation] Start polling failed:", error);
+          return {
+            success: false,
+            message: "启动自动抓取失败",
+            error: error instanceof Error ? error.message : "未知错误",
+          };
+        }
       }),
   }),
 

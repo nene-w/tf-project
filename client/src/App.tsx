@@ -9,6 +9,7 @@ import EmailSignals from "./pages/EmailSignals";
 import FundamentalAnalysis from "./pages/FundamentalAnalysis";
 import ExternalViews from "./pages/ExternalViews";
 import TradeRecords from "./pages/TradeRecords";
+import EmailAutomation from "./pages/EmailAutomation";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -19,6 +20,7 @@ function Router() {
       <Route path={"/analysis"} component={FundamentalAnalysis} />
       <Route path={"/views"} component={ExternalViews} />
       <Route path={"/trades"} component={TradeRecords} />
+      <Route path={"/email-automation"} component={EmailAutomation} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

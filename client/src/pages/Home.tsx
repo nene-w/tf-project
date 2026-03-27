@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ArrowRight, TrendingUp, BarChart3, Users, Zap } from "lucide-react";
+import { ArrowRight, TrendingUp, BarChart3, Users, Zap, Mail } from "lucide-react";
 import { getLoginUrl } from "@/const";
 import { Link } from "wouter";
 
@@ -32,6 +32,24 @@ export default function Home() {
         {/* 仪表盘网格 */}
         <div className="container py-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            {/* 邮件自动化卡片 */}
+            <Link href="/email-automation">
+              <Card className="card-elegant cursor-pointer group">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-2.5 bg-orange-500/10 rounded-lg group-hover:bg-orange-500/20 transition-colors">
+                    <Mail className="w-6 h-6 text-orange-500" />
+                  </div>
+                </div>
+                <h3 className="font-semibold mb-1">邮件自动化</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  配置和管理邮件自动抓取
+                </p>
+                <div className="flex items-center text-orange-500 text-sm font-medium">
+                  配置自动化 <ArrowRight className="w-4 h-4 ml-2" />
+                </div>
+              </Card>
+            </Link>
+
             {/* 邮件信号卡片 */}
             <Link href="/signals">
               <Card className="card-elegant cursor-pointer group">
