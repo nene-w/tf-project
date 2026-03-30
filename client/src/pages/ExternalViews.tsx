@@ -31,6 +31,16 @@ export default function ExternalViews() {
     }
   });
 
+  const scrapeHiborPuppeteerMutation = trpc.externalViews.scrapeHiborPuppeteer.useMutation({
+    onSuccess: (data) => {
+      refetch();
+      alert(`成功抶取！共获取 ${data.totalReports} 篇研报，创建 ${data.createdViews} 条观点记录`);
+    },
+    onError: (error) => {
+      alert('Puppeteer 抶取失败，请稍后重试');
+    }
+  });
+
   const autoAnalyzeMutation = trpc.viewConclusions.autoAnalyze.useMutation({
     onSuccess: (data) => {
       alert(`成功生成结论！\n\n${data.conclusion}`);
@@ -63,6 +73,14 @@ export default function ExternalViews() {
             </p>
           </div>
           <div className="flex gap-2">
+            <Button 
+              className="button-primary"
+              onClick={() => scrapeHiborPuppeteerMutation.mutate()}
+              disabled={scrapeHiborPuppeteerMutation.isPending}
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              {scrapeHiborPuppeteerMutation.isPending ? 'Puppeteer 抶取中...' : 'Puppeteer 自动抶取'}
+            </Button>
             <Button 
               className="button-primary"
               onClick={() => scrapeHiborAdvancedMutation.mutate()}

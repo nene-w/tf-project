@@ -272,6 +272,48 @@ export const appRouter = router({
         }
       }),
 
+    scrapeHiborPuppeteer: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        try {
+          const { scrapeHiborWithPuppeteer } = await import('./hiborPuppeteerScraper');
+          const reports = await scrapeHiborWithPuppeteer();
+          
+          let createdCount = 0;
+          for (const report of reports) {
+            try {
+              await createExternalView({
+                sourceType: 'research_report',
+                sourceName: report.source,
+                title: report.title,
+                summary: report.summary || report.title,
+                fullContent: report.summary,
+                sentiment: 'neutral',
+                url: report.url,
+                relatedContracts: report.keywords,
+              });
+              createdCount++;
+            } catch (error) {
+              console.error('[ExternalViews] Error creating view:', error);
+            }
+          }
+          
+          return {
+            success: true,
+            totalReports: reports.length,
+            createdViews: createdCount,
+            message: `成功抶取 ${reports.length} 篇研报，创建 ${createdCount} 条观点记录`
+          };
+        } catch (error) {
+          console.error('[ExternalViews] Error scraping Hibor with Puppeteer:', error);
+          return {
+            success: false,
+            totalReports: 0,
+            createdViews: 0,
+            message: '抶取失败，请稍后重试'
+          };
+        }
+      }),
+
     scrapeHibor: protectedProcedure
       .mutation(async ({ ctx }) => {
         try {
