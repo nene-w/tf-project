@@ -22,8 +22,8 @@ export interface FundamentalIndicator {
  */
 export async function fetchAKShareData(): Promise<FundamentalIndicator[]> {
   try {
-    const data = generateFLAMEData();
-    return data.map(d => ({
+    const data = await generateFLAMEData();
+    return data.map((d: any) => ({
       dataType: d.dataType,
       indicator: d.indicator,
       value: d.value,

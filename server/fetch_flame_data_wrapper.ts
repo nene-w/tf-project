@@ -15,7 +15,7 @@ export interface FLAMEData {
  */
 export async function fetchFLAMEData(): Promise<FLAMEData[]> {
   try {
-    const data = generateFLAMEData();
+    const data = await generateFLAMEData();
     console.log(`[FLAMEDataWrapper] Successfully generated ${data.length} FLAME data items`);
     return data;
   } catch (error) {
