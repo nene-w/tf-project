@@ -128,3 +128,7 @@
 - [x] 次使用 TuShare 作为备选数据源
 - [x] 验证 10Y 国债收益率、DR007 等关键指标的准确性
 - [x] 更新后端数据调用逻辑，确保实时获取最新数据
+
+- [x] 优先使用新浪财经、东方财富、中债登等实时数据源
+- [x] 创建 fetch_realtime_flame_data.py 脚本
+- [x] 更新 generateFLAMEData.ts 调用新的实时数据脚本

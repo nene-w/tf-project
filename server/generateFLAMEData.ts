@@ -1,10 +1,10 @@
 /**
  * FLAME 框架数据生成器（TypeScript 版本）
- * 优先使用 AKShare 获取真实市场数据
+ * 优先使用实时数据源获取最新市场数据
  * 
  * 数据来源：
- * - 国债收益率：中债登（通过 AKShare）
- * - 宏观指标：国家统计局、央行（通过 AKShare）
+ * - 国债收益率：新浪财经、东方财富、中债登
+ * - 宏观指标：国家统计局、央行
  * - 流动性数据：央行、中国外汇交易中心
  * - 市场情绪：交易所、市场调查
  * - 外部环境：美联储、彭博
@@ -23,13 +23,13 @@ export interface FLAMEData {
 }
 
 /**
- * 调用 Python 脚本获取 AKShare 数据
+ * 调用 Python 脚本获取实时数据
  */
-async function fetchFromAKShare(): Promise<FLAMEData[]> {
+async function fetchRealtimeData(): Promise<FLAMEData[]> {
   try {
-    console.log('[FLAME] 调用 AKShare 获取真实市场数据...');
+    console.log('[FLAME] 调用实时数据获取脚本...');
     
-    const scriptPath = '/home/ubuntu/treasury-futures-platform/server/fetch_real_flame_data.py';
+    const scriptPath = '/home/ubuntu/treasury-futures-platform/server/fetch_realtime_flame_data.py';
     const output = execSync(`python3 ${scriptPath}`, {
       encoding: 'utf-8',
       timeout: 30000,
@@ -40,11 +40,11 @@ async function fetchFromAKShare(): Promise<FLAMEData[]> {
     const jsonMatch = output.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
       const data = JSON.parse(jsonMatch[0]) as FLAMEData[];
-      console.log(`[FLAME] 成功从 AKShare 获取 ${data.length} 条数据`);
+      console.log(`[FLAME] 成功获取 ${data.length} 条数据`);
       return data;
     }
   } catch (error) {
-    console.warn('[FLAME] AKShare 数据获取失败:', error);
+    console.warn('[FLAME] 实时数据获取失败:', error);
   }
   
   return [];
@@ -216,21 +216,21 @@ function generateDefaultFLAMEData(): FLAMEData[] {
 
 /**
  * 生成完整的 FLAME 数据集
- * 优先使用 AKShare 获取真实数据，失败则使用默认数据
+ * 优先使用实时数据源获取最新数据，失败则使用默认数据
  */
 export async function generateFLAMEData(): Promise<FLAMEData[]> {
   console.log('[FLAME] 开始生成 FLAME 数据...');
   
   try {
-    // 优先尝试从 AKShare 获取真实数据
-    const akshareData = await fetchFromAKShare();
+    // 优先尝试从实时数据源获取数据
+    const realtimeData = await fetchRealtimeData();
     
-    if (akshareData.length > 0) {
-      console.log(`[FLAME] 成功获取 ${akshareData.length} 条 AKShare 数据`);
-      return akshareData;
+    if (realtimeData.length > 0) {
+      console.log(`[FLAME] 成功获取 ${realtimeData.length} 条实时数据`);
+      return realtimeData;
     }
   } catch (error) {
-    console.warn('[FLAME] AKShare 获取失败，使用默认数据:', error);
+    console.warn('[FLAME] 实时数据获取失败，使用默认数据:', error);
   }
   
   // 降级方案：使用默认数据
