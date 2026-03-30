@@ -1,9 +1,9 @@
 // @ts-nocheck
 import { trpc } from "@/lib/trpc";
-  import { Card } from "@/components/ui/card";
-  import { Badge } from "@/components/ui/badge";
-  import { Button } from "@/components/ui/button";
-  import { Plus, ExternalLink, Sparkles } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Plus, ExternalLink, Sparkles } from "lucide-react";
 
 export default function ExternalViews() {
   const { data: views, refetch } = trpc.externalViews.list.useQuery({
@@ -18,6 +18,16 @@ export default function ExternalViews() {
     },
     onError: (error) => {
       alert('抶取失败，请稍后重试');
+    }
+  });
+
+  const scrapeHiborAdvancedMutation = trpc.externalViews.scrapeHiborAdvanced.useMutation({
+    onSuccess: (data) => {
+      refetch();
+      alert(`成功抶取！共获取 ${data.totalReports} 篇研报，创建 ${data.createdViews} 条观点记录`);
+    },
+    onError: (error) => {
+      alert('高级抶取失败，请稍后重试');
     }
   });
 
@@ -55,11 +65,20 @@ export default function ExternalViews() {
           <div className="flex gap-2">
             <Button 
               className="button-primary"
+              onClick={() => scrapeHiborAdvancedMutation.mutate()}
+              disabled={scrapeHiborAdvancedMutation.isPending}
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              {scrapeHiborAdvancedMutation.isPending ? '高级抶取中...' : '高级抶取（多版块）'}
+            </Button>
+            <Button 
+              className="button-primary"
               onClick={() => scrapeHiborMutation.mutate()}
               disabled={scrapeHiborMutation.isPending}
+              variant="outline"
             >
               <Plus className="w-4 h-4 mr-2" />
-              {scrapeHiborMutation.isPending ? '抶取中...' : '抶取慧博研报'}
+              {scrapeHiborMutation.isPending ? '抶取中...' : '基础抶取'}
             </Button>
             <Button 
               className="button-primary"
