@@ -233,8 +233,8 @@ export const appRouter = router({
     scrapeHibor: protectedProcedure
       .mutation(async ({ ctx }) => {
         try {
-          const { scrapeAllResearch } = await import('./hiborScraper');
-          const reports = await scrapeAllResearch();
+          const { scrapeHibor } = await import('./hiborScraper');
+          const reports = await scrapeHibor();
           
           let createdCount = 0;
           for (const report of reports) {
