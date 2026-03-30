@@ -157,7 +157,7 @@ export const appRouter = router({
           messages: [
             {
               role: "system",
-              content: `你是一位专业的国债期货分析师。请使用财信宏观的 **FLAME 五维分析框架**，结合提供的最新市场数据，对当前利率与流动性环境进行专业机构级分析。
+              content: `你是一位专业的国债期货分析师。请使用财信宏观的 **FLAME 五维分析框架**，结合提供的最新市场数据，对当前利率与流动性环境进行专业机构级分析。请用中文进行深度分析。
 
 FLAME 框架要求：
 F：基本面（经济、通胀、复苏强度）
@@ -166,7 +166,7 @@ A：债券供需（利率债供给、配置力量、交易盘行为）
 M：市场情绪（降息预期、杠杆水平、止盈压力）
 E：外部环境（美联储、中美利差、汇率）
 
-输出格式必须包含：
+输出格式必须包含（全部用中文）：
 1. 各维度深度分析
 2. 核心结论（宽松窗口是否存在）
 3. 利率走势判断（震荡/趋势/区间）
@@ -174,7 +174,7 @@ E：外部环境（美联储、中美利差、汇率）
             },
             {
               role: "user",
-              content: `请基于以下最新数据进行 FLAME 框架分析：\n\n${dataContext}\n\n分析标题：${input.title}`,
+              content: `请基于以下最新数据进行 FLAME 框架分析：\n\n${dataContext}\n\n分析标题：${input.title}\n\n请确保所有分析内容都用中文表述。`,
             },
           ],
         });
@@ -182,12 +182,12 @@ E：外部环境（美联储、中美利差、汇率）
         const rawContent = response.choices[0]?.message.content;
         const content = typeof rawContent === "string" ? rawContent : "无法生成分析";
 
-        // 4. 简单提取建议倾向
+        // 4. 简单提取建议倾向（中文关键词）
         let recommendation: "strong_buy" | "buy" | "hold" | "sell" | "strong_sell" = "hold";
-        if (content.includes("强力买入") || content.includes("看多")) recommendation = "strong_buy";
-        else if (content.includes("买入") || content.includes("看涨")) recommendation = "buy";
-        else if (content.includes("卖出") || content.includes("看空")) recommendation = "sell";
-        else if (content.includes("强力卖出")) recommendation = "strong_sell";
+        if (content.includes("强力买入") || content.includes("强烈看多") || content.includes("强烈做多")) recommendation = "strong_buy";
+        else if (content.includes("买入") || content.includes("看多") || content.includes("做多")) recommendation = "buy";
+        else if (content.includes("卖出") || content.includes("看空") || content.includes("做空")) recommendation = "sell";
+        else if (content.includes("强力卖出") || content.includes("强烈看空")) recommendation = "strong_sell";
 
         // 5. 存储分析结果
         return await createFundamentalAnalysis({
@@ -254,7 +254,7 @@ E：外部环境（美联储、中美利差、汇率）
 
   // ============ Fundamental Data ============
   fundamentalData: router({
-    list: publicProcedure
+    list: protectedProcedure
       .input(
         z.object({
           dataType: z.string().optional(),
@@ -262,12 +262,12 @@ E：外部环境（美联储、中美利差、汇率）
           offset: z.number().default(0),
         })
       )
-      .query(async ({ input }) => {
+      .query(async ({ input, ctx }) => {
         return await getFundamentalData(input.dataType, input.limit, input.offset);
       }),
 
-    refresh: publicProcedure
-      .mutation(async () => {
+    refresh: protectedProcedure
+      .mutation(async ({ ctx }) => {
         try {
           const { fetchFLAMEData } = await import('./fetch_flame_data_wrapper');
           const flameData = await fetchFLAMEData();

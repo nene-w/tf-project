@@ -1,5 +1,4 @@
-import { spawn } from 'child_process';
-import path from 'path';
+import { generateFLAMEData } from './generateFLAMEData';
 
 export interface FLAMEData {
   dataType: string;
@@ -12,56 +11,15 @@ export interface FLAMEData {
 }
 
 /**
- * 调用 Python 脚本获取 FLAME 数据
+ * 获取 FLAME 数据（使用 TypeScript 生成器）
  */
 export async function fetchFLAMEData(): Promise<FLAMEData[]> {
-  return new Promise((resolve, reject) => {
-    const pythonScript = path.join(process.cwd(), 'server', 'fetch_flame_data.py');
-    const pythonProcess = spawn('python3', [pythonScript]);
-
-    let stdoutData = '';
-    let stderrData = '';
-
-    pythonProcess.stdout.on('data', (data) => {
-      stdoutData += data.toString();
-    });
-
-    pythonProcess.stderr.on('data', (data) => {
-      stderrData += data.toString();
-    });
-
-    pythonProcess.on('close', (code) => {
-      if (code !== 0) {
-        console.error(`[FLAMEDataWrapper] Python process failed with code ${code}:`, stderrData);
-        // 即使失败也返回空数组而不是拒绝，这样前端不会崩溃
-        resolve([]);
-        return;
-      }
-
-      try {
-        const data = JSON.parse(stdoutData);
-        if (Array.isArray(data)) {
-          resolve(data);
-        } else {
-          console.warn('[FLAMEDataWrapper] Unexpected data format:', typeof data);
-          resolve([]);
-        }
-      } catch (error) {
-        console.error('[FLAMEDataWrapper] Failed to parse Python output:', error);
-        resolve([]);
-      }
-    });
-
-    pythonProcess.on('error', (error) => {
-      console.error('[FLAMEDataWrapper] Process error:', error);
-      resolve([]);
-    });
-
-    // 设置超时
-    setTimeout(() => {
-      pythonProcess.kill();
-      console.warn('[FLAMEDataWrapper] Python process timeout');
-      resolve([]);
-    }, 30000); // 30秒超时
-  });
+  try {
+    const data = generateFLAMEData();
+    console.log(`[FLAMEDataWrapper] Successfully generated ${data.length} FLAME data items`);
+    return data;
+  } catch (error) {
+    console.error('[FLAMEDataWrapper] Error generating FLAME data:', error);
+    return [];
+  }
 }
