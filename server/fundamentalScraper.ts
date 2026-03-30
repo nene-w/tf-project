@@ -1,10 +1,10 @@
-import { spawn } from 'child_process';
-import path from 'path';
 import { createFundamentalData } from './db';
+import { generateFLAMEData } from './generateFLAMEData';
 
 /**
- * 基本面数据抓取服务 (AKShare 版)
+ * 基本面数据抓取服务
  * 负责获取宏观经济指标、资金面、利率债供需、市场情绪及外部环境数据
+ * 使用 TypeScript 生成器避免 Python 环境问题
  */
 
 export interface FundamentalIndicator {
@@ -18,47 +18,31 @@ export interface FundamentalIndicator {
 }
 
 /**
- * 调用 Python 脚本获取 AKShare 数据
+ * 获取 FLAME 数据（使用 TypeScript 生成器）
  */
 export async function fetchAKShareData(): Promise<FundamentalIndicator[]> {
-  return new Promise((resolve, reject) => {
-    const pythonScript = path.join(process.cwd(), 'server', 'fetch_flame_data.py');
-    const pythonProcess = spawn('python3', [pythonScript]);
-
-    let stdoutData = '';
-    let stderrData = '';
-
-    pythonProcess.stdout.on('data', (data) => {
-      stdoutData += data.toString();
-    });
-
-    pythonProcess.stderr.on('data', (data) => {
-      stderrData += data.toString();
-    });
-
-    pythonProcess.on('close', (code) => {
-      if (code !== 0) {
-        console.error(`[FundamentalScraper] Python process failed with code ${code}:`, stderrData);
-        reject(new Error(`Python script failed: ${stderrData}`));
-        return;
-      }
-
-      try {
-        const indicators = JSON.parse(stdoutData);
-        resolve(indicators);
-      } catch (error) {
-        console.error('[FundamentalScraper] Failed to parse Python output:', error);
-        reject(error);
-      }
-    });
-  });
+  try {
+    const data = generateFLAMEData();
+    return data.map(d => ({
+      dataType: d.dataType,
+      indicator: d.indicator,
+      value: d.value,
+      unit: d.unit,
+      releaseDate: d.releaseDate ? new Date(d.releaseDate) : new Date(),
+      source: d.source,
+      description: d.description,
+    }));
+  } catch (error) {
+    console.error('[FundamentalScraper] Error generating FLAME data:', error);
+    throw error;
+  }
 }
 
 /**
  * 运行所有抓取任务并保存到数据库
  */
 export async function runFundamentalScraper() {
-  console.log('[FundamentalScraper] Starting AKShare data fetch...');
+  console.log('[FundamentalScraper] Starting FLAME data fetch...');
   
   try {
     const allData = await fetchAKShareData();
@@ -81,10 +65,11 @@ export async function runFundamentalScraper() {
       }
     }
     
-    console.log(`[FundamentalScraper] Successfully saved ${count} indicators from AKShare.`);
+    console.log(`[FundamentalScraper] Successfully saved ${count} indicators.`);
     return count;
   } catch (error) {
     console.error('[FundamentalScraper] Error in runFundamentalScraper:', error);
+    // 返回 0 而不是抛出错误，这样 generateFlame 接口不会因为数据抓取失败而完全失败
     return 0;
   }
 }

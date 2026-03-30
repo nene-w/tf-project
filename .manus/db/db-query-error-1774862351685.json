@@ -1,0 +1,8 @@
+{
+  "query": "SELECT u.id, u.email, u.role, COUNT(fa.id) as analysis_count \nFROM users u \nLEFT JOIN fundamental_analysis fa ON u.id = fa.user_id \nWHERE u.email = '3178903@qq.com' \nGROUP BY u.id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4R4KB4qPSFwYhgH.03e0e995d813 --database nVvNFjotNyQ4jQ9EDzGQTH --execute SELECT u.id, u.email, u.role, COUNT(fa.id) as analysis_count \nFROM users u \nLEFT JOIN fundamental_analysis fa ON u.id = fa.user_id \nWHERE u.email = '3178903@qq.com' \nGROUP BY u.id;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'fa.user_id' in 'on clause'"
+  ]
+}

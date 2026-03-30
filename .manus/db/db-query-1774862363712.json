@@ -1,0 +1,15 @@
+{
+  "query": "SELECT id, email, role FROM users WHERE email = '3178903@qq.com';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4R4KB4qPSFwYhgH.03e0e995d813 --database nVvNFjotNyQ4jQ9EDzGQTH --execute SELECT id, email, role FROM users WHERE email = '3178903@qq.com';",
+  "rows": [
+    {
+      "id": "330046",
+      "email": "3178903@qq.com",
+      "role": "user"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\temail\trole\n330046\t3178903@qq.com\tuser\n",
+  "stderr": "",
+  "execution_time_ms": 1611
+}
