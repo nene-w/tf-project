@@ -132,6 +132,75 @@ export const appRouter = router({
         return await getFundamentalAnalysis(ctx.user.id, input.limit, input.offset);
       }),
 
+    generateFlame: protectedProcedure
+      .input(
+        z.object({
+          title: z.string(),
+          autoFetch: z.boolean().default(true),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        // 1. 自动抓取最新数据
+        if (input.autoFetch) {
+          const { runFundamentalScraper } = await import('./fundamentalScraper');
+          await runFundamentalScraper();
+        }
+
+        // 2. 获取最新数据上下文
+        const recentData = await getFundamentalData(undefined, 20);
+        const dataContext = recentData
+          .map((d) => `[${d.dataType}] ${d.indicator}: ${d.value} ${d.unit || ""} (${d.source})`)
+          .join("\n");
+
+        // 3. 使用 FLAME 框架调用 LLM
+        const response = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `你是一位专业的国债期货分析师。请使用财信宏观的 **FLAME 五维分析框架**，结合提供的最新市场数据，对当前利率与流动性环境进行专业机构级分析。
+
+FLAME 框架要求：
+F：基本面（经济、通胀、复苏强度）
+L：流动性（央行操作、DR007、资金面松紧）
+A：债券供需（利率债供给、配置力量、交易盘行为）
+M：市场情绪（降息预期、杠杆水平、止盈压力）
+E：外部环境（美联储、中美利差、汇率）
+
+输出格式必须包含：
+1. 各维度深度分析
+2. 核心结论（宽松窗口是否存在）
+3. 利率走势判断（震荡/趋势/区间）
+4. 债券/国债期货策略建议（久期、方向、操作思路）`,
+            },
+            {
+              role: "user",
+              content: `请基于以下最新数据进行 FLAME 框架分析：\n\n${dataContext}\n\n分析标题：${input.title}`,
+            },
+          ],
+        });
+
+        const rawContent = response.choices[0]?.message.content;
+        const content = typeof rawContent === "string" ? rawContent : "无法生成分析";
+
+        // 4. 简单提取建议倾向
+        let recommendation: "strong_buy" | "buy" | "hold" | "sell" | "strong_sell" = "hold";
+        if (content.includes("强力买入") || content.includes("看多")) recommendation = "strong_buy";
+        else if (content.includes("买入") || content.includes("看涨")) recommendation = "buy";
+        else if (content.includes("卖出") || content.includes("看空")) recommendation = "sell";
+        else if (content.includes("强力卖出")) recommendation = "strong_sell";
+
+        // 5. 存储分析结果
+        return await createFundamentalAnalysis({
+          userId: ctx.user.id,
+          title: input.title,
+          content,
+          recommendation,
+          keyIndicators: recentData.map(d => d.indicator) as any,
+          riskLevel: "medium",
+          validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        });
+      }),
+
     generate: protectedProcedure
       .input(
         z.object({
