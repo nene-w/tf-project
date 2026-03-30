@@ -10,6 +10,7 @@ import { toast } from "sonner";
 
 export default function FundamentalAnalysis() {
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const { data: analyses, refetch: refetchAnalyses } = trpc.fundamentalAnalysis.list.useQuery({
     limit: 20,
@@ -18,6 +19,22 @@ export default function FundamentalAnalysis() {
 
   const { data: fundamentalData, refetch: refetchData } = trpc.fundamentalData.list.useQuery({
     limit: 15,
+  });
+
+  const refreshDataMutation = trpc.fundamentalData.refresh.useMutation({
+    onSuccess: (result) => {
+      setIsRefreshing(false);
+      if (result.success) {
+        refetchData();
+        toast.success(`成功刷新数据: ${result.message}`);
+      } else {
+        toast.error(result.message);
+      }
+    },
+    onError: (err) => {
+      setIsRefreshing(false);
+      toast.error("数据刷新失败: " + err.message);
+    }
   });
 
   const generateFlameMutation = trpc.fundamentalAnalysis.generateFlame.useMutation({
@@ -39,6 +56,11 @@ export default function FundamentalAnalysis() {
       title: `国债市场 FLAME 深度分析 (${new Date().toLocaleDateString()})`,
       autoFetch: true,
     });
+  };
+
+  const handleRefreshData = async () => {
+    setIsRefreshing(true);
+    await refreshDataMutation.mutateAsync();
   };
 
   const getRecommendationColor = (rec: string) => {
@@ -89,11 +111,12 @@ export default function FundamentalAnalysis() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => refetchData()}
+              onClick={handleRefreshData}
+              disabled={isRefreshing}
               className="hidden sm:flex"
             >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              刷新数据
+              <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? "刷新中..." : "刷新数据"}
             </Button>
             <Button
               className="button-primary"

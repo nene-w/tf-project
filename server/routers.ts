@@ -266,6 +266,48 @@ E：外部环境（美联储、中美利差、汇率）
         return await getFundamentalData(input.dataType, input.limit, input.offset);
       }),
 
+    refresh: publicProcedure
+      .mutation(async () => {
+        try {
+          const { fetchFLAMEData } = await import('./fetch_flame_data_wrapper');
+          const flameData = await fetchFLAMEData();
+          
+          // 存储数据到数据库
+          let savedCount = 0;
+          for (const item of flameData) {
+            try {
+              await createFundamentalData({
+                dataType: item.dataType,
+                indicator: item.indicator,
+                value: String(item.value),
+                unit: item.unit,
+                releaseDate: item.releaseDate ? new Date(item.releaseDate) : new Date(),
+                source: item.source,
+                description: item.description,
+              });
+              savedCount++;
+            } catch (error) {
+              console.error('[FundamentalData] Error saving data:', error);
+            }
+          }
+          
+          return {
+            success: true,
+            dataCount: flameData.length,
+            savedCount,
+            message: `成功获取 ${flameData.length} 条数据，保存 ${savedCount} 条到数据库`
+          };
+        } catch (error) {
+          console.error('[FundamentalData] Error refreshing FLAME data:', error);
+          return {
+            success: false,
+            dataCount: 0,
+            savedCount: 0,
+            message: '数据刷新失败，请稍后重试'
+          };
+        }
+      }),
+
     create: protectedProcedure
       .input(
         z.object({
