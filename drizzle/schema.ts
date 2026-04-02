@@ -408,3 +408,65 @@ export const klineCache = mysqlTable("kline_cache", {
 
 export type KlineCache = typeof klineCache.$inferSelect;
 export type InsertKlineCache = typeof klineCache.$inferInsert;
+
+// AI 分析师 API 配置表
+export const aiAnalystConfigs = mysqlTable("ai_analyst_configs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  // API 类型：openai_compatible, custom
+  apiType: varchar("apiType", { length: 50 }).default("openai_compatible"),
+  // API Base URL
+  apiBaseUrl: varchar("apiBaseUrl", { length: 500 }),
+  // API Key
+  apiKey: varchar("apiKey", { length: 500 }),
+  // 使用的模型名称
+  modelName: varchar("modelName", { length: 100 }).default("gpt-4.1-mini"),
+  // 自定义 System Prompt（可选）
+  systemPrompt: text("systemPrompt"),
+  // 温度参数
+  temperature: float("temperature").default(0.7),
+  // 最大 token 数
+  maxTokens: int("maxTokens").default(4000),
+  // 是否启用
+  isEnabled: boolean("isEnabled").default(false),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AiAnalystConfig = typeof aiAnalystConfigs.$inferSelect;
+export type InsertAiAnalystConfig = typeof aiAnalystConfigs.$inferInsert;
+
+// AI 分析师报告表
+export const aiAnalystReports = mysqlTable("ai_analyst_reports", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  // 报告标题
+  title: varchar("title", { length: 255 }).notNull(),
+  // 分析的合约品种：TF(5年期), T(10年期), TL(30年期)
+  contract: varchar("contract", { length: 10 }).notNull(),
+  // 报告完整内容（Markdown）
+  content: text("content").notNull(),
+  // 趋势结论：bullish, bearish, neutral
+  trendConclusion: mysqlEnum("trendConclusion", ["bullish", "bearish", "neutral"]).notNull(),
+  // 置信度评分 (0-100)
+  confidenceScore: int("confidenceScore").default(50),
+  // FLAME 基本面评分汇总 (JSON)
+  flameScores: json("flameScores"),
+  // 技术形态分析摘要
+  technicalSummary: text("technicalSummary"),
+  // 关键支撑位
+  supportLevels: json("supportLevels").$type<number[]>(),
+  // 关键压力位
+  resistanceLevels: json("resistanceLevels").$type<number[]>(),
+  // 市场预期差核心点
+  expectationGaps: text("expectationGaps"),
+  // 报告生成时使用的数据源 ID (JSON)
+  dataSources: json("dataSources"),
+  // 报告有效期
+  validUntil: timestamp("validUntil"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AiAnalystReport = typeof aiAnalystReports.$inferSelect;
+export type InsertAiAnalystReport = typeof aiAnalystReports.$inferInsert;

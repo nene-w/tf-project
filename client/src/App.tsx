@@ -14,6 +14,7 @@ import MarketAnalysis from "./pages/MarketAnalysis";
 import IndicatorEditor from "./pages/IndicatorEditor";
 import SignalRecords from "./pages/SignalRecords";
 import MarketSettings from "./pages/MarketSettings";
+import AiAnalyst from "./pages/AiAnalyst";
 
 function Router() {
   // make sure to consider if you need authentication for certain routes
@@ -29,6 +30,7 @@ function Router() {
       <Route path={"/indicators"} component={IndicatorEditor} />
       <Route path={"/signal-records"} component={SignalRecords} />
       <Route path={"/market-settings"} component={MarketSettings} />
+      <Route path={"/ai-analyst"} component={AiAnalyst} />
       <Route path={"/404"} component={NotFound} />
       {/* Final fallback route */}
       <Route component={NotFound} />

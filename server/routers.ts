@@ -44,8 +44,11 @@ import {
 import { invokeLLM } from "./_core/llm";
 import { tqService, BOND_FUTURES_CONTRACTS } from "./services/tqService";
 import { parseTdxIndicator } from "./services/tdxParser";
-import { sendSignalEmail, testEmailConnection } from "./services/emailAlert";
+import { testEmailConnection } from "./services/emailAlert";
 import { fetchEmailSignals, startEmailPolling } from "./emailService";
+import { fetchAndAnalyzeUrl } from "./urlScraper";
+import { generateAnalystReport, generateAnalystReportWithBuiltIn, CONTRACT_INFO, ContractCode } from "./services/aiAnalyst";
+import { getAiAnalystConfig, createOrUpdateAiAnalystConfig, getAiAnalystReports, getLatestAiAnalystReport, createAiAnalystReport } from "./db";
 
 export const appRouter = router({
   system: systemRouter,
@@ -1171,6 +1174,155 @@ ${input.content}`,
       }))
       .mutation(async ({ input }) => {
         return testEmailConnection(input);
+       }),
+  }),
+  // ── AI Analyst Router ──────────────────────────────────────────────────────
+  aiAnalyst: router({
+    getConfig: protectedProcedure.query(async ({ ctx }) => {
+      const config = await getAiAnalystConfig(ctx.user.id);
+      if (!config) return null;
+      return {
+        ...config,
+        apiKey: config.apiKey ? "••••••••" : null,
+      };
+    }),
+    saveConfig: protectedProcedure
+      .input(z.object({
+        apiType: z.string().optional(),
+        apiBaseUrl: z.string().optional(),
+        apiKey: z.string().optional(),
+        modelName: z.string().optional(),
+        systemPrompt: z.string().optional(),
+        temperature: z.number().optional(),
+        maxTokens: z.number().optional(),
+        isEnabled: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await createOrUpdateAiAnalystConfig({
+          userId: ctx.user.id,
+          ...input,
+        });
+        return { success: true };
+      }),
+    getReports: protectedProcedure
+      .input(z.object({ contract: z.string().optional(), limit: z.number().default(20) }))
+      .query(async ({ ctx, input }) => {
+        return getAiAnalystReports(ctx.user.id, input.contract, input.limit);
+      }),
+    getLatestReport: protectedProcedure
+      .input(z.object({ contract: z.string() }))
+      .query(async ({ ctx, input }) => {
+        return getLatestAiAnalystReport(ctx.user.id, input.contract);
+      }),
+    generate: protectedProcedure
+      .input(z.object({ contract: z.enum(["TF", "T", "TL"]) }))
+      .mutation(async ({ ctx, input }) => {
+        const userId = ctx.user.id;
+        const contract = input.contract as ContractCode;
+        
+        // 1. 获取用户配置
+        const userConfig = await getAiAnalystConfig(userId);
+        
+        // 2. 收集 FLAME 数据
+        const fundamentalAnalysisList = await getFundamentalAnalysis(userId, 1);
+        const weeklyReports = await getWeeklyFlameReports(userId, 1);
+        const externalViewsList = await getExternalViews(userId, 20);
+        
+        const flameData = {
+          fundamentalAnalysis: fundamentalAnalysisList[0]?.content,
+          weeklyFlameReport: weeklyReports[0]?.content,
+          externalViews: externalViewsList.map(v => ({
+            title: v.title,
+            summary: v.summary,
+            flameDimension: v.flameDimension || undefined,
+            sentimentScore: v.sentimentScore || undefined,
+            expectationGap: v.expectationGap || undefined,
+            publishDate: v.publishDate?.toISOString(),
+          })),
+        };
+        
+        // 3. 收集技术数据（从 K 线缓存）
+        const contractInfo = CONTRACT_INFO[contract];
+        const klines = await getKlineCache(contractInfo.tqCode, 86400, 60); // 60根日K
+        
+        const technicalData: any = {};
+        if (klines.length > 0) {
+          const latest = klines[0];
+          technicalData.currentPrice = latest.close;
+          technicalData.volume = latest.volume;
+          technicalData.openInterest = latest.openInterest;
+          
+          // 计算均线
+          const closes = klines.map(k => k.close || 0);
+          technicalData.ma5 = closes.slice(0, 5).reduce((a, b) => a + b, 0) / Math.min(5, closes.length);
+          technicalData.ma10 = closes.slice(0, 10).reduce((a, b) => a + b, 0) / Math.min(10, closes.length);
+          technicalData.ma20 = closes.slice(0, 20).reduce((a, b) => a + b, 0) / Math.min(20, closes.length);
+          technicalData.ma60 = closes.slice(0, 60).reduce((a, b) => a + b, 0) / Math.min(60, closes.length);
+          
+          technicalData.recentKlines = klines.slice(0, 20).reverse().map(k => ({
+            datetime: new Date(Number(k.datetime) / 1000000).toLocaleDateString("zh-CN"),
+            open: k.open || 0,
+            high: k.high || 0,
+            low: k.low || 0,
+            close: k.close || 0,
+            volume: k.volume || 0,
+          }));
+        }
+        
+        // 4. 收集信号数据
+        const signals = await getSignalRecords(userId, 10);
+        const signalData = signals
+          .filter(s => s.contract.includes(contract))
+          .map(s => ({
+            indicatorName: s.indicatorName || "未知指标",
+            signalType: s.signalType,
+            price: s.price || undefined,
+            triggeredAt: s.triggeredAt.toISOString(),
+          }));
+        
+        // 5. 调用 AI 生成分析报告
+        let result;
+        if (userConfig?.isEnabled && userConfig.apiKey) {
+          result = await generateAnalystReport(
+            {
+              apiKey: userConfig.apiKey,
+              apiBaseUrl: userConfig.apiBaseUrl || undefined,
+              modelName: userConfig.modelName || "gpt-4.1-mini",
+              systemPrompt: userConfig.systemPrompt || undefined,
+              temperature: userConfig.temperature || 0.7,
+              maxTokens: userConfig.maxTokens || 4000,
+            },
+            { contract, flameData, technicalData, signalData }
+          );
+        } else {
+          result = await generateAnalystReportWithBuiltIn({ contract, flameData, technicalData, signalData });
+        }
+        
+        // 6. 保存报告到数据库
+        const validUntil = new Date();
+        validUntil.setDate(validUntil.getDate() + 7);
+        
+        await createAiAnalystReport({
+          userId,
+          title: result.title,
+          contract,
+          content: result.content,
+          trendConclusion: result.trendConclusion,
+          confidenceScore: result.confidenceScore,
+          flameScores: result.flameScores,
+          technicalSummary: result.technicalSummary,
+          supportLevels: result.supportLevels,
+          resistanceLevels: result.resistanceLevels,
+          expectationGaps: result.expectationGaps,
+          dataSources: {
+            fundamentalAnalysisId: fundamentalAnalysisList[0]?.id,
+            weeklyReportId: weeklyReports[0]?.id,
+            externalViewIds: externalViewsList.slice(0, 10).map(v => v.id),
+          },
+          validUntil,
+        });
+        
+        return result;
       }),
     sendTest: protectedProcedure
       .mutation(async ({ ctx }) => {
@@ -1194,5 +1346,4 @@ ${input.content}`,
       }),
   }),
 });
-
 export type AppRouter = typeof appRouter;

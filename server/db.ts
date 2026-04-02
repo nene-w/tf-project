@@ -611,3 +611,71 @@ export async function upsertKlineCache(bars: (typeof klineCache.$inferInsert)[])
     });
   }
 }
+
+// ============ AI Analyst Config ============
+import { aiAnalystConfigs, aiAnalystReports } from "../drizzle/schema";
+
+export async function getAiAnalystConfig(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db
+    .select()
+    .from(aiAnalystConfigs)
+    .where(eq(aiAnalystConfigs.userId, userId))
+    .limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function createOrUpdateAiAnalystConfig(config: typeof aiAnalystConfigs.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return await db
+    .insert(aiAnalystConfigs)
+    .values(config)
+    .onDuplicateKeyUpdate({
+      set: {
+        apiType: config.apiType,
+        apiBaseUrl: config.apiBaseUrl,
+        apiKey: config.apiKey,
+        modelName: config.modelName,
+        systemPrompt: config.systemPrompt,
+        temperature: config.temperature,
+        maxTokens: config.maxTokens,
+        isEnabled: config.isEnabled,
+      },
+    });
+}
+
+// ============ AI Analyst Reports ============
+export async function getAiAnalystReports(userId: number, contract?: string, limit = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  const conditions = [eq(aiAnalystReports.userId, userId)];
+  if (contract) {
+    conditions.push(eq(aiAnalystReports.contract, contract));
+  }
+  return await db
+    .select()
+    .from(aiAnalystReports)
+    .where(and(...conditions))
+    .orderBy(desc(aiAnalystReports.createdAt))
+    .limit(limit);
+}
+
+export async function getLatestAiAnalystReport(userId: number, contract: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db
+    .select()
+    .from(aiAnalystReports)
+    .where(and(eq(aiAnalystReports.userId, userId), eq(aiAnalystReports.contract, contract)))
+    .orderBy(desc(aiAnalystReports.createdAt))
+    .limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function createAiAnalystReport(report: typeof aiAnalystReports.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  return await db.insert(aiAnalystReports).values(report);
+}
