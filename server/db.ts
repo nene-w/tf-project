@@ -211,7 +211,18 @@ export async function createExternalView(view: typeof externalViews.$inferInsert
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  return await db.insert(externalViews).values(view);
+  // Insert the view
+  await db.insert(externalViews).values(view);
+  
+  // Fetch and return the most recently inserted record for this view
+  const insertedView = await db
+    .select()
+    .from(externalViews)
+    .where(eq(externalViews.title, view.title || ""))
+    .orderBy(desc(externalViews.id))
+    .limit(1);
+  
+  return insertedView[0];
 }
 
 // ============ View Conclusions ============

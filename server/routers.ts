@@ -562,8 +562,11 @@ E：外部环境（美联储、中美利差、汇率）
         })
       )
       .mutation(async ({ input, ctx }) => {
-        // 调用 LLM 进行 FLAME 分析
-        const response = await invokeLLM({
+        try {
+          console.log("[submitText] Starting analysis", { title: input.title });
+          
+          // 调用 LLM 进行 FLAME 分析
+          const response = await invokeLLM({
           messages: [
             {
               role: "system",
@@ -624,20 +627,28 @@ ${input.content}`,
           console.error("解析 FLAME 分析 JSON 失败", e);
         }
 
-        // 保存到数据库
-        return await createExternalView({
-          sourceType: "user_submission",
-          sourceName: input.author || "用户提交",
-          author: input.author,
-          title: input.title,
-          summary: analysisData.summary,
-          fullContent: input.content,
-          sentiment: analysisData.sentimentScore > 0 ? "bullish" : analysisData.sentimentScore < 0 ? "bearish" : "neutral",
-          flameDimension: analysisData.flameDimension,
-          sentimentScore: analysisData.sentimentScore,
-          expectationGap: analysisData.expectationGap,
-          relatedContracts: analysisData.relatedContracts,
-        });
+          // 保存到数据库
+          console.log("[submitText] Saving to database", { title: input.title });
+          const result = await createExternalView({
+            sourceType: "user_submission",
+            sourceName: input.author || "用户提交",
+            author: input.author,
+            title: input.title,
+            summary: analysisData.summary,
+            fullContent: input.content,
+            sentiment: analysisData.sentimentScore > 0 ? "bullish" : analysisData.sentimentScore < 0 ? "bearish" : "neutral",
+            flameDimension: analysisData.flameDimension,
+            sentimentScore: analysisData.sentimentScore,
+            expectationGap: analysisData.expectationGap,
+            relatedContracts: analysisData.relatedContracts,
+          });
+          
+          console.log("[submitText] Success", { id: result?.id });
+          return { data: result };
+        } catch (error) {
+          console.error("[submitText] Error", error);
+          throw error;
+        }
       }),
 
     create: protectedProcedure
