@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ArrowRight, TrendingUp, BarChart3, Users, Zap, Mail } from "lucide-react";
+import { ArrowRight, TrendingUp, BarChart3, Users, Zap, Mail, LineChart, Settings, AlertCircle, Sliders } from "lucide-react";
 import { getLoginUrl } from "@/const";
 import { Link } from "wouter";
 
@@ -31,7 +31,7 @@ export default function Home() {
 
         {/* 仪表盘网格 */}
         <div className="container py-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 mb-8">
             {/* 邮件自动化卡片 */}
             <Link href="/email-automation">
               <Card className="card-elegant cursor-pointer group">
@@ -118,6 +118,78 @@ export default function Home() {
                 </p>
                 <div className="flex items-center text-green-500 text-sm font-medium">
                   查看交易 <ArrowRight className="w-4 h-4 ml-2" />
+                </div>
+              </Card>
+            </Link>
+
+            {/* 实时行情卡片 */}
+            <Link href="/market">
+              <Card className="card-elegant cursor-pointer group">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-2.5 bg-cyan-500/10 rounded-lg group-hover:bg-cyan-500/20 transition-colors">
+                    <LineChart className="w-6 h-6 text-cyan-500" />
+                  </div>
+                </div>
+                <h3 className="font-semibold mb-1">实时行情</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  查看K线图表和实时行情数据
+                </p>
+                <div className="flex items-center text-cyan-500 text-sm font-medium">
+                  查看行情 <ArrowRight className="w-4 h-4 ml-2" />
+                </div>
+              </Card>
+            </Link>
+
+            {/* 自定义指标卡片 */}
+            <Link href="/indicators">
+              <Card className="card-elegant cursor-pointer group">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-2.5 bg-indigo-500/10 rounded-lg group-hover:bg-indigo-500/20 transition-colors">
+                    <Sliders className="w-6 h-6 text-indigo-500" />
+                  </div>
+                </div>
+                <h3 className="font-semibold mb-1">自定义指标</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  编辑和管理技术指标
+                </p>
+                <div className="flex items-center text-indigo-500 text-sm font-medium">
+                  管理指标 <ArrowRight className="w-4 h-4 ml-2" />
+                </div>
+              </Card>
+            </Link>
+
+            {/* 信号记录卡片 */}
+            <Link href="/signal-records">
+              <Card className="card-elegant cursor-pointer group">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-2.5 bg-red-500/10 rounded-lg group-hover:bg-red-500/20 transition-colors">
+                    <AlertCircle className="w-6 h-6 text-red-500" />
+                  </div>
+                </div>
+                <h3 className="font-semibold mb-1">信号记录</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  查看技术指标触发的信号
+                </p>
+                <div className="flex items-center text-red-500 text-sm font-medium">
+                  查看记录 <ArrowRight className="w-4 h-4 ml-2" />
+                </div>
+              </Card>
+            </Link>
+
+            {/* 市场设置卡片 */}
+            <Link href="/market-settings">
+              <Card className="card-elegant cursor-pointer group">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-2.5 bg-slate-500/10 rounded-lg group-hover:bg-slate-500/20 transition-colors">
+                    <Settings className="w-6 h-6 text-slate-500" />
+                  </div>
+                </div>
+                <h3 className="font-semibold mb-1">市场设置</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  配置天勤和邮件提醒
+                </p>
+                <div className="flex items-center text-slate-500 text-sm font-medium">
+                  配置 <ArrowRight className="w-4 h-4 ml-2" />
                 </div>
               </Card>
             </Link>

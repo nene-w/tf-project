@@ -234,3 +234,15 @@
 - [x] 修复前端 API 调用以匹配后端实现
 - [x] 运行单元测试验证功能（19 tests passed）
 - [x] 系统成功编译运行（No TypeScript errors）
+
+
+## 添加新功能导航入口（新增）
+
+- [x] 在 App.tsx 中添加新功能的路由
+- [x] 在 Home.tsx 中添加 4 个新功能卡片：
+  - [x] 实时行情（Market Analysis）
+  - [x] 自定义指标（Indicator Editor）
+  - [x] 信号记录（Signal Records）
+  - [x] 市场设置（Market Settings）
+- [x] 调整网格布局从 4 列改为 6 列以容纳所有卡片
+- [x] 所有单元测试通过（19 tests passed）
