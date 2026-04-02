@@ -1,4 +1,5 @@
-import OpenAI from "openai";
+// 使用内置 LLM 接口，无需安装 openai 包
+import { invokeLLM } from "../_core/llm";
 
 // 合约信息映射
 export const CONTRACT_INFO = {
@@ -281,25 +282,19 @@ export async function generateAnalystReport(
   config: AiAnalystConfig,
   data: AnalystInputData
 ): Promise<AnalystResult> {
-  const client = new OpenAI({
-    apiKey: config.apiKey,
-    baseURL: config.apiBaseUrl || "https://api.openai.com/v1",
-  });
-
   const systemPrompt = buildSystemPrompt(config.systemPrompt);
   const userPrompt = buildUserPrompt(data);
 
-  const response = await client.chat.completions.create({
-    model: config.modelName || "gpt-4.1-mini",
+  // 使用内置 invokeLLM 接口
+  const response = await invokeLLM({
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
     ],
-    temperature: config.temperature ?? 0.7,
-    max_tokens: config.maxTokens ?? 4000,
   });
 
-  const content = response.choices[0]?.message?.content || "";
+  const rawContent = response.choices[0]?.message?.content;
+  const content = typeof rawContent === 'string' ? rawContent : (rawContent ? JSON.stringify(rawContent) : "");
   const parsed = parseAnalystOutput(content, data.contract);
 
   return {

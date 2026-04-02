@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ArrowRight, TrendingUp, BarChart3, Users, Zap, Mail, Activity, Brain, AlertCircle, Settings } from "lucide-react";
+import { ArrowRight, TrendingUp, BarChart3, Users, Zap, Mail, Activity, Brain, AlertCircle, Settings, LineChart, Sliders } from "lucide-react";
 import { getLoginUrl } from "@/const";
 import { Link } from "wouter";
 

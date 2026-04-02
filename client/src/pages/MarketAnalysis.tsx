@@ -67,15 +67,24 @@ export default function KlineChartLwc() {
     }
   }, []);
 
-  // 获取 K 线数据
+  // 获取 K 线数据（根据周期动态调整 limit）
+  const klineLimit = useMemo(() => {
+    const p = parseInt(selectedPeriod);
+    if (p === 86400) return 180;   // 日线：180 天
+    if (p === 3600) return 855;    // 60分钟：855 根
+    if (p === 900) return 500;     // 15分钟：500 根
+    if (p === 300) return 500;     // 5分钟：500 根
+    return 300;                    // 1分钟：300 根
+  }, [selectedPeriod]);
+
   const { data: klinesData, isLoading: isLoadingKlines, refetch: refetchKlines } = trpc.tq.getKlines.useQuery(
     {
       contract: selectedContract,
       period: parseInt(selectedPeriod),
-      limit: 200,
+      limit: klineLimit,
     },
     {
-      refetchInterval: parseInt(selectedPeriod) * 1000 + 5000, // 周期 + 5 秒
+      refetchInterval: parseInt(selectedPeriod) >= 3600 ? 60000 : parseInt(selectedPeriod) * 1000 + 5000,
     }
   );
 

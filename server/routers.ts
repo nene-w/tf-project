@@ -44,7 +44,7 @@ import {
 import { invokeLLM } from "./_core/llm";
 import { tqService, BOND_FUTURES_CONTRACTS } from "./services/tqService";
 import { parseTdxIndicator } from "./services/tdxParser";
-import { testEmailConnection } from "./services/emailAlert";
+import { sendSignalEmail, testEmailConnection } from "./services/emailAlert";
 import { fetchEmailSignals, startEmailPolling } from "./emailService";
 import { fetchAndAnalyzeUrl } from "./urlScraper";
 import { generateAnalystReport, generateAnalystReportWithBuiltIn, CONTRACT_INFO, ContractCode } from "./services/aiAnalyst";
@@ -1023,7 +1023,7 @@ ${input.content}`,
       .input(z.object({
         contract: z.string(),
         period: z.number().default(60),
-        limit: z.number().default(200),
+        limit: z.number().max(8000).default(500),  // 支持最多 8000 根
       }))
       .query(async ({ input }) => {
         const cached = await getKlineCache(input.contract, input.period, input.limit);
@@ -1175,6 +1175,26 @@ ${input.content}`,
       .mutation(async ({ input }) => {
         return testEmailConnection(input);
        }),
+    sendTest: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        try {
+          const config = await getEmailConfig(ctx.user.id);
+          if (!config || !config.fromEmail || !config.toEmails || config.toEmails.length === 0) {
+            return { success: false, error: "邮件配置不完整" };
+          }
+          await sendSignalEmail(config, {
+            contract: "T-Bond",
+            signalType: "buy",
+            price: 100.5,
+            description: "测试信号",
+            indicatorName: "测试",
+            triggeredAt: new Date(),
+          });
+          return { success: true };
+        } catch (error) {
+          return { success: false, error: error instanceof Error ? error.message : "发送失败" };
+        }
+      }),
   }),
   // ── AI Analyst Router ──────────────────────────────────────────────────────
   aiAnalyst: router({
@@ -1323,26 +1343,6 @@ ${input.content}`,
         });
         
         return result;
-      }),
-    sendTest: protectedProcedure
-      .mutation(async ({ ctx }) => {
-        try {
-          const config = await getEmailConfig(ctx.user.id);
-          if (!config || !config.fromEmail || !config.toEmails || config.toEmails.length === 0) {
-            return { success: false, error: "邮件配置不完整" };
-          }
-          await sendSignalEmail(config, {
-            contract: "T-Bond",
-            signalType: "buy",
-            price: 100.5,
-            description: "测试信号",
-            indicatorName: "测试",
-            triggeredAt: new Date(),
-          });
-          return { success: true };
-        } catch (error) {
-          return { success: false, error: error instanceof Error ? error.message : "发送失败" };
-        }
       }),
   }),
 });

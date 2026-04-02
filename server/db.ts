@@ -17,6 +17,8 @@ import {
   signalRecords,
   emailConfigs,
   klineCache,
+  aiAnalystConfigs,
+  aiAnalystReports,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -582,7 +584,7 @@ export async function createOrUpdateEmailConfig(config: typeof emailConfigs.$inf
 }
 
 // ============ Kline Cache ============
-export async function getKlineCache(contract: string, period: number, limit = 500) {
+export async function getKlineCache(contract: string, period: number, limit = 1000) {
   const db = await getDb();
   if (!db) return [];
 
@@ -591,7 +593,7 @@ export async function getKlineCache(contract: string, period: number, limit = 50
     .from(klineCache)
     .where(and(eq(klineCache.contract, contract), eq(klineCache.period, period)))
     .orderBy(desc(klineCache.datetime))
-    .limit(limit);
+    .limit(limit);  // 支持更多历史数据
 }
 
 export async function upsertKlineCache(bars: (typeof klineCache.$inferInsert)[]) {
@@ -612,9 +614,7 @@ export async function upsertKlineCache(bars: (typeof klineCache.$inferInsert)[])
   }
 }
 
-// ============ AI Analyst Config ============
-import { aiAnalystConfigs, aiAnalystReports } from "../drizzle/schema";
-
+/// ============ AI Analyst Config ============
 export async function getAiAnalystConfig(userId: number) {
   const db = await getDb();
   if (!db) return null;
