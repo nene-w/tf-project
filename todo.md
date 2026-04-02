@@ -312,3 +312,12 @@
 - [x] 验证真实数据下载（200 根 K 线数据）
 - [ ] 在实时行情页面显示真实 K 线数据
 - [ ] 端到端验证
+
+
+## 修复实时行情图表错误（新增）
+
+- [x] 诊断 addCandlestickSeries API 版本不匹配问题（v5 使用新 API）
+- [x] 升级到 lightweight-charts v5 新 API（chart.addSeries）
+- [x] 修复 LightweightKlineChart 组件（完全重写）
+- [x] 验证图表正常显示（所有 26 个测试通过）
+- [ ] 测试实时数据推送（待用户验证）
