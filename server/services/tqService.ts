@@ -50,6 +50,8 @@ class TQService extends EventEmitter {
   private tqUsername = "";
   private tqPassword = "";
   private subscribedContracts: string[] = [];
+  private klineCache: Record<string, KlineBar[]> = {};  // 缓存K线数据
+  private latestQuotes: Record<string, QuoteData> = {};  // 缓存最新行情
 
   constructor() {
     super();
@@ -60,6 +62,9 @@ class TQService extends EventEmitter {
   }
 
   async start(username: string, password: string, contracts: string[]): Promise<{ success: boolean; error?: string }> {
+    // 先停止现有服务
+    this.stop();
+    
     this.tqUsername = username;
     this.tqPassword = password;
     this.subscribedContracts = contracts.length > 0 ? contracts : Object.keys(BOND_FUTURES_CONTRACTS);
@@ -90,6 +95,25 @@ class TQService extends EventEmitter {
       mode: this.tqUsername ? "live" : "mock",
       contracts: this.subscribedContracts,
     };
+  }
+
+  // 获取缓存的K线数据（真实或模拟）
+  getKlines(contract: string, periodSec: number = 60, limit: number = 200): KlineBar[] {
+    const cached = this.klineCache[contract];
+    if (cached && cached.length > 0) {
+      return cached.slice(-limit);
+    }
+    // 如果没有缓存，返回模拟数据
+    return this.generateMockKlines(contract, periodSec, limit);
+  }
+
+  // 获取最新行情
+  getLatestQuotes(): QuoteData[] {
+    const cached = Object.values(this.latestQuotes);
+    if (cached.length > 0) {
+      return cached;
+    }
+    return this.getMockQuotes();
   }
 
   // 生成模拟K线数据（用于界面展示）
@@ -123,12 +147,6 @@ class TQService extends EventEmitter {
     return bars;
   }
 
-  // 获取模拟实时行情
-  getKlines(contract: string, periodSec: number = 60, limit: number = 200): KlineBar[] {
-    // 返回模拟K线数据（实际应从TQ获取真实数据）
-    return this.generateMockKlines(contract, periodSec, limit);
-  }
-
   getMockQuotes(): QuoteData[] {
     return Object.entries(BOND_FUTURES_CONTRACTS).map(([contract, info]) => {
       const price = this.mockPrices[contract] || info.basePrice;
@@ -159,8 +177,66 @@ class TQService extends EventEmitter {
           Math.min(info.basePrice * 1.05, current + change)
         );
       }
-      this.emit("quotes", this.getMockQuotes());
+      const quotes = this.getMockQuotes();
+      // 更新缓存
+      for (const q of quotes) {
+        this.latestQuotes[q.contract] = q;
+      }
+      this.emit("quotes", quotes);
     }, 2000);
+  }
+
+  private processMessage(line: string) {
+    try {
+      const msg = JSON.parse(line);
+      
+      if (msg.type === "quotes" || msg.type === "quote") {
+        // 更新行情缓存
+        const quotesArray: QuoteData[] = Array.isArray(msg.data) ? msg.data : [msg.data];
+        for (const q of quotesArray) {
+          if (q && q.contract) {
+            this.latestQuotes[q.contract] = q;
+          }
+        }
+        this.emit("quotes", quotesArray);
+        
+      } else if (msg.type === "klines") {
+        // 初始K线数据（历史数据批量推送）
+        const contract = msg.contract;
+        const bars: KlineBar[] = msg.data || [];
+        if (contract && bars.length > 0) {
+          this.klineCache[contract] = bars;
+          console.log(`[TQService] Cached ${bars.length} klines for ${contract}`);
+          this.emit("klines", { contract, period: msg.period, data: bars });
+        }
+        
+      } else if (msg.type === "kline") {
+        // 单根K线更新
+        const contract = msg.contract;
+        const bar: KlineBar = msg.data;
+        if (contract && bar) {
+          // 更新缓存中的最后一根K线
+          if (!this.klineCache[contract]) {
+            this.klineCache[contract] = [];
+          }
+          const cache = this.klineCache[contract];
+          if (cache.length > 0 && cache[cache.length - 1].datetime === bar.datetime) {
+            cache[cache.length - 1] = bar;  // 更新最后一根
+          } else {
+            cache.push(bar);  // 添加新K线
+            if (cache.length > 500) {
+              cache.shift();  // 限制缓存大小
+            }
+          }
+          this.emit("kline", { contract, period: msg.period, data: bar });
+        }
+        
+      } else if (msg.type === "error") {
+        this.emit("error", msg.error || msg.message);
+      }
+    } catch {
+      // ignore non-JSON output
+    }
   }
 
   private async startPythonProcess(): Promise<{ success: boolean; error?: string }> {
@@ -180,34 +256,40 @@ class TQService extends EventEmitter {
             TQ_USERNAME: this.tqUsername,
             TQ_PASSWORD: this.tqPassword,
             TQ_CONTRACTS: this.subscribedContracts.join(","),
+            PYTHONUNBUFFERED: "1",  // 禁用Python输出缓冲
           },
         });
 
         let started = false;
+        let buffer = "";
+        
         const timeout = setTimeout(() => {
           if (!started) {
+            console.log("[TQService] Timeout waiting for Python worker, falling back to mock mode");
             this.startMockMode();
             resolve({ success: true });
           }
-        }, 10000);
+        }, 30000);  // 30秒超时（等待天勤连接）
 
         this.pythonProcess.stdout?.on("data", (data: Buffer) => {
-          const lines = data.toString().split("\n").filter(Boolean);
+          buffer += data.toString();
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";  // 保留不完整的行
+          
           for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            
             try {
-              const msg = JSON.parse(line);
+              const msg = JSON.parse(trimmed);
               if (msg.type === "ready" && !started) {
                 started = true;
                 clearTimeout(timeout);
                 this.isRunning = true;
+                console.log(`[TQService] Python worker ready, mode: ${msg.mode}`);
                 resolve({ success: true });
-              } else if (msg.type === "quotes" || msg.type === "quote") {
-                this.emit("quotes", msg.data);
-              } else if (msg.type === "kline") {
-                this.emit("kline", msg.data);
-              } else if (msg.type === "error") {
-                this.emit("error", msg.error || msg.message);
               }
+              this.processMessage(trimmed);
             } catch {
               // ignore non-JSON output
             }
@@ -215,11 +297,12 @@ class TQService extends EventEmitter {
         });
 
         this.pythonProcess.stderr?.on("data", (data: Buffer) => {
-          console.error("[TQSdk]", data.toString());
+          console.error("[TQSdk]", data.toString().trim());
         });
 
         this.pythonProcess.on("exit", (code) => {
           this.isRunning = false;
+          console.log(`[TQService] Python worker exited with code ${code}`);
           this.emit("disconnected", code);
           if (!started) {
             clearTimeout(timeout);
@@ -227,6 +310,16 @@ class TQService extends EventEmitter {
             resolve({ success: true });
           }
         });
+        
+        this.pythonProcess.on("error", (err) => {
+          console.error("[TQService] Python process error:", err);
+          if (!started) {
+            clearTimeout(timeout);
+            this.startMockMode();
+            resolve({ success: true });
+          }
+        });
+        
       } catch (e: any) {
         this.startMockMode();
         resolve({ success: true });
