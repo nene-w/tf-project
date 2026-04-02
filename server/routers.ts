@@ -341,6 +341,13 @@ E：外部环境（美联储、中美利差、汇率）
         return await getExternalViews(input.limit, input.offset);
       }),
 
+    fetchByUrl: protectedProcedure
+      .input(z.object({ url: z.string().url() }))
+      .mutation(async ({ input, ctx }) => {
+        const { fetchAndAnalyzeUrl } = await import("./urlScraper");
+        return await fetchAndAnalyzeUrl(ctx.user.id, input.url);
+      }),
+
     scrapeHiborAdvanced: protectedProcedure
       .mutation(async ({ ctx }) => {
         try {
