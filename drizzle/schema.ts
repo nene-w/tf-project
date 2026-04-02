@@ -8,6 +8,8 @@ import {
   decimal,
   boolean,
   json,
+  bigint,
+  float,
 } from "drizzle-orm/mysql-core";
 
 /**
@@ -303,3 +305,106 @@ export const weeklyFlameReports = mysqlTable("weekly_flame_reports", {
 
 export type WeeklyFlameReport = typeof weeklyFlameReports.$inferSelect;
 export type InsertWeeklyFlameReport = typeof weeklyFlameReports.$inferInsert;
+
+// 天勤量化账户配置
+export const tqConfigs = mysqlTable("tq_configs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  tqUsername: varchar("tqUsername", { length: 128 }),
+  tqPassword: varchar("tqPassword", { length: 256 }),
+  // 订阅的合约列表，JSON数组: ["KQ.m@CFFEX.T","KQ.m@CFFEX.TF","KQ.m@CFFEX.TS","KQ.m@CFFEX.TL"]
+  subscribedContracts: json("subscribedContracts").$type<string[]>(),
+  // K线周期（秒）：60=1分钟, 300=5分钟, 900=15分钟, 1800=30分钟, 3600=1小时, 86400=日线
+  klinePeriod: int("klinePeriod").default(60),
+  isEnabled: boolean("isEnabled").default(false),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TqConfig = typeof tqConfigs.$inferSelect;
+export type InsertTqConfig = typeof tqConfigs.$inferInsert;
+
+// 通达信指标代码
+export const indicators = mysqlTable("indicators", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  name: varchar("name", { length: 128 }).notNull(),
+  description: text("description"),
+  // 原始通达信代码
+  tdxCode: text("tdxCode").notNull(),
+  // 转换后的Python代码
+  pythonCode: text("pythonCode"),
+  // 转换状态: pending/success/error
+  convertStatus: mysqlEnum("convertStatus", ["pending", "success", "error"]).default("pending"),
+  convertError: text("convertError"),
+  // 应用到的合约列表
+  appliedContracts: json("appliedContracts").$type<string[]>(),
+  isActive: boolean("isActive").default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type Indicator = typeof indicators.$inferSelect;
+export type InsertIndicator = typeof indicators.$inferInsert;
+
+// 历史信号记录
+export const signalRecords = mysqlTable("signal_records", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  indicatorId: int("indicatorId"),
+  indicatorName: varchar("indicatorName", { length: 128 }),
+  contract: varchar("contract", { length: 64 }).notNull(),
+  // 信号类型: buy/sell/alert
+  signalType: mysqlEnum("signalType", ["buy", "sell", "alert"]).notNull(),
+  price: float("price"),
+  signalValue: float("signalValue"),
+  description: text("description"),
+  // 是否已发送邮件
+  emailSent: boolean("emailSent").default(false),
+  emailSentAt: timestamp("emailSentAt"),
+  triggeredAt: timestamp("triggeredAt").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type SignalRecord = typeof signalRecords.$inferSelect;
+export type InsertSignalRecord = typeof signalRecords.$inferInsert;
+
+// 邮件报警配置
+export const emailConfigs = mysqlTable("email_configs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  smtpHost: varchar("smtpHost", { length: 256 }),
+  smtpPort: int("smtpPort").default(465),
+  smtpSecure: boolean("smtpSecure").default(true),
+  smtpUser: varchar("smtpUser", { length: 320 }),
+  smtpPassword: varchar("smtpPassword", { length: 256 }),
+  fromEmail: varchar("fromEmail", { length: 320 }),
+  toEmails: json("toEmails").$type<string[]>(),
+  isEnabled: boolean("isEnabled").default(false),
+  // 报警冷却时间（分钟），避免频繁发送
+  cooldownMinutes: int("cooldownMinutes").default(30),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type EmailConfig = typeof emailConfigs.$inferSelect;
+export type InsertEmailConfig = typeof emailConfigs.$inferInsert;
+
+// K线数据缓存
+export const klineCache = mysqlTable("kline_cache", {
+  id: bigint("id", { mode: "number" }).autoincrement().primaryKey(),
+  contract: varchar("contract", { length: 64 }).notNull(),
+  period: int("period").notNull(),
+  // 纳秒时间戳
+  datetime: bigint("datetime", { mode: "number" }).notNull(),
+  open: float("open"),
+  high: float("high"),
+  low: float("low"),
+  close: float("close"),
+  volume: float("volume"),
+  openInterest: float("openInterest"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type KlineCache = typeof klineCache.$inferSelect;
+export type InsertKlineCache = typeof klineCache.$inferInsert;

@@ -218,3 +218,19 @@
 - [x] 删除商品期货相关的研报
 - [x] 验证删除结果
 - [ ] 保存检查点
+
+
+## 集成同事 bbfdf29 功能（新增）
+
+- [x] 从 GitHub 提取 bbfdf29 的 routers.ts 文件
+- [x] 修复 TypeScript 编译错误（9 个错误）
+- [x] 添加缺失的后端 API 过程：
+  - [x] indicator.delete - 删除指标
+  - [x] indicator.convertPreview - 预览转换结果
+  - [x] tq.getQuotes - 获取实时行情
+  - [x] tq.getServiceStatus - 获取服务状态
+  - [x] email.sendTest - 发送测试邮件
+  - [x] signal.testSignal - 测试信号
+- [x] 修复前端 API 调用以匹配后端实现
+- [x] 运行单元测试验证功能（19 tests passed）
+- [x] 系统成功编译运行（No TypeScript errors）
