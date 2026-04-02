@@ -466,18 +466,30 @@ export async function createOrUpdateTqConfig(config: typeof tqConfigs.$inferInse
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  return await db
-    .insert(tqConfigs)
-    .values(config)
-    .onDuplicateKeyUpdate({
-      set: {
+  // Check if config already exists
+  const existing = await db
+    .select()
+    .from(tqConfigs)
+    .where(eq(tqConfigs.userId, config.userId!))
+    .limit(1);
+
+  if (existing.length > 0) {
+    // Update existing
+    return await db
+      .update(tqConfigs)
+      .set({
         tqUsername: config.tqUsername,
         tqPassword: config.tqPassword,
         subscribedContracts: config.subscribedContracts,
         klinePeriod: config.klinePeriod,
         isEnabled: config.isEnabled,
-      },
-    });
+        updatedAt: new Date(),
+      })
+      .where(eq(tqConfigs.userId, config.userId!));
+  } else {
+    // Insert new
+    return await db.insert(tqConfigs).values(config);
+  }
 }
 
 // ============ Indicators ============

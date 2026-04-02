@@ -309,7 +309,7 @@ export type InsertWeeklyFlameReport = typeof weeklyFlameReports.$inferInsert;
 // 天勤量化账户配置
 export const tqConfigs = mysqlTable("tq_configs", {
   id: int("id").autoincrement().primaryKey(),
-  userId: int("userId").notNull(),
+  userId: int("userId").notNull().unique(),
   tqUsername: varchar("tqUsername", { length: 128 }),
   tqPassword: varchar("tqPassword", { length: 256 }),
   // 订阅的合约列表，JSON数组: ["KQ.m@CFFEX.T","KQ.m@CFFEX.TF","KQ.m@CFFEX.TS","KQ.m@CFFEX.TL"]
