@@ -602,7 +602,8 @@ ${input.content}`,
         const contentRaw = response.choices[0]?.message.content || "{}";
         const contentStr = typeof contentRaw === 'string' ? contentRaw : JSON.stringify(contentRaw);
         
-        // 提取 JSON
+        console.log("[submitText] LLM response", { contentStr: contentStr.substring(0, 300) });
+        
         let analysisData = {
           flameDimension: "F",
           sentimentScore: 0,
@@ -635,10 +636,16 @@ ${input.content}`,
           analysisData.summary = input.title;
         }
 
-          // 保存到数据库
-          console.log("[submitText] Saving to database", { title: input.title });
+          console.log("[submitText] Analysis data", { 
+            flameDimension: analysisData.flameDimension,
+            sentimentScore: analysisData.sentimentScore,
+            summary: analysisData.summary?.substring(0, 50),
+            relatedContracts: analysisData.relatedContracts
+          });
           
           const summary = analysisData.summary || input.title || "文章摘要";
+          
+          console.log("[submitText] Saving to database", { title: input.title, summary: summary?.substring(0, 50) });
           
           const result = await createExternalView({
             sourceType: "user_submission",
