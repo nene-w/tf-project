@@ -1,0 +1,34 @@
+{
+  "query": "SELECT id, userId, title, createdAt FROM fundamental_analysis ORDER BY createdAt DESC LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4R4KB4qPSFwYhgH.03e0e995d813 --database nVvNFjotNyQ4jQ9EDzGQTH --execute SELECT id, userId, title, createdAt FROM fundamental_analysis ORDER BY createdAt DESC LIMIT 5;",
+  "rows": [
+    {
+      "id": "30003",
+      "userId": "330046",
+      "title": "国债市场 FLAME 深度分析 (2026/3/30)",
+      "createdAt": "2026-03-30 09:25:31"
+    },
+    {
+      "id": "30002",
+      "userId": "1",
+      "title": "国债市场 FLAME 深度分析 (3/30/2026)",
+      "createdAt": "2026-03-30 09:21:35"
+    },
+    {
+      "id": "30001",
+      "userId": "1",
+      "title": "国债市场 FLAME 深度分析 (3/30/2026)",
+      "createdAt": "2026-03-30 09:07:31"
+    },
+    {
+      "id": "1",
+      "userId": "1",
+      "title": "Treasury Market Analysis",
+      "createdAt": "2026-03-27 09:49:01"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\ttitle\tcreatedAt\n30003\t330046\t国债市场 FLAME 深度分析 (2026/3/30)\t2026-03-30 09:25:31\n30002\t1\t国债市场 FLAME 深度分析 (3/30/2026)\t2026-03-30 09:21:35\n30001\t1\t国债市场 FLAME 深度分析 (3/30/2026)\t2026-03-30 09:07:31\n1\t1\tTreasury Market Analysis\t2026-03-27 09:49:01\n",
+  "stderr": "",
+  "execution_time_ms": 1551
+}

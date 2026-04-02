@@ -1,0 +1,170 @@
+{
+  "query": "SELECT id, indicator, value, unit, source, createdAt FROM fundamental_data ORDER BY createdAt DESC LIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4R4KB4qPSFwYhgH.03e0e995d813 --database nVvNFjotNyQ4jQ9EDzGQTH --execute SELECT id, indicator, value, unit, source, createdAt FROM fundamental_data ORDER BY createdAt DESC LIMIT 20;",
+  "rows": [
+    {
+      "id": "30016",
+      "indicator": "美元指数",
+      "value": "103.8000",
+      "unit": "点",
+      "source": "彭博",
+      "createdAt": "2026-03-30 10:32:29"
+    },
+    {
+      "id": "30015",
+      "indicator": "中美10Y利差",
+      "value": "-0.1800",
+      "unit": "%",
+      "source": "市场数据",
+      "createdAt": "2026-03-30 10:32:29"
+    },
+    {
+      "id": "30012",
+      "indicator": "降息预期",
+      "value": "42.0000",
+      "unit": "%",
+      "source": "市场调查",
+      "createdAt": "2026-03-30 10:32:28"
+    },
+    {
+      "id": "30011",
+      "indicator": "风险偏好指数",
+      "value": "48.0000",
+      "unit": "点",
+      "source": "市场观察",
+      "createdAt": "2026-03-30 10:32:28"
+    },
+    {
+      "id": "30013",
+      "indicator": "机构杠杆水平",
+      "value": "2.1000",
+      "unit": "倍",
+      "source": "交易所",
+      "createdAt": "2026-03-30 10:32:28"
+    },
+    {
+      "id": "30014",
+      "indicator": "美联储基金利率",
+      "value": "5.2500",
+      "unit": "%",
+      "source": "美联储",
+      "createdAt": "2026-03-30 10:32:28"
+    },
+    {
+      "id": "30008",
+      "indicator": "10Y国债收益率",
+      "value": "1.8200",
+      "unit": "%",
+      "source": "中债登",
+      "createdAt": "2026-03-30 10:32:27"
+    },
+    {
+      "id": "30007",
+      "indicator": "M2同比增速",
+      "value": "8.3000",
+      "unit": "%",
+      "source": "央行",
+      "createdAt": "2026-03-30 10:32:27"
+    },
+    {
+      "id": "30009",
+      "indicator": "5Y国债收益率",
+      "value": "1.6800",
+      "unit": "%",
+      "source": "中债登",
+      "createdAt": "2026-03-30 10:32:27"
+    },
+    {
+      "id": "30010",
+      "indicator": "国债发行规模",
+      "value": "2950.0000",
+      "unit": "亿元",
+      "source": "财政部",
+      "createdAt": "2026-03-30 10:32:27"
+    },
+    {
+      "id": "30005",
+      "indicator": "DR007",
+      "value": "1.4800",
+      "unit": "%",
+      "source": "中国外汇交易中心",
+      "createdAt": "2026-03-30 10:32:26"
+    },
+    {
+      "id": "30002",
+      "indicator": "CPI同比",
+      "value": "1.9000",
+      "unit": "%",
+      "source": "国家统计局",
+      "createdAt": "2026-03-30 10:32:26"
+    },
+    {
+      "id": "30004",
+      "indicator": "社会融资规模",
+      "value": "3.1000",
+      "unit": "万亿元",
+      "source": "央行",
+      "createdAt": "2026-03-30 10:32:26"
+    },
+    {
+      "id": "30006",
+      "indicator": "央行逆回购投放",
+      "value": "600.0000",
+      "unit": "亿元",
+      "source": "央行",
+      "createdAt": "2026-03-30 10:32:26"
+    },
+    {
+      "id": "30003",
+      "indicator": "PPI同比",
+      "value": "1.5000",
+      "unit": "%",
+      "source": "国家统计局",
+      "createdAt": "2026-03-30 10:32:26"
+    },
+    {
+      "id": "30001",
+      "indicator": "制造业PMI",
+      "value": "49.2000",
+      "unit": "%",
+      "source": "国家统计局",
+      "createdAt": "2026-03-30 10:32:25"
+    },
+    {
+      "id": "70",
+      "indicator": "央行逆回购投放",
+      "value": "500.0000",
+      "unit": "亿元",
+      "source": "央行",
+      "createdAt": "2026-03-30 09:25:17"
+    },
+    {
+      "id": "71",
+      "indicator": "M2同比增速",
+      "value": "8.5000",
+      "unit": "%",
+      "source": "央行",
+      "createdAt": "2026-03-30 09:25:17"
+    },
+    {
+      "id": "66",
+      "indicator": "CPI同比",
+      "value": "2.1000",
+      "unit": "%",
+      "source": "国家统计局",
+      "createdAt": "2026-03-30 09:25:17"
+    },
+    {
+      "id": "65",
+      "indicator": "制造业PMI",
+      "value": "49.5000",
+      "unit": "%",
+      "source": "国家统计局",
+      "createdAt": "2026-03-30 09:25:17"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tindicator\tvalue\tunit\tsource\tcreatedAt\n30016\t美元指数\t103.8000\t点\t彭博\t2026-03-30 10:32:29\n30015\t中美10Y利差\t-0.1800\t%\t市场数据\t2026-03-30 10:32:29\n30012\t降息预期\t42.0000\t%\t市场调查\t2026-03-30 10:32:28\n30011\t风险偏好指数\t48.0000\t点\t市场观察\t2026-03-30 10:32:28\n30013\t机构杠杆水平\t2.1000\t倍\t交易所\t2026-03-30 10:32:28\n30014\t美联储基金利率\t5.2500\t%\t美联储\t2026-03-30 10:32:28\n30008\t10Y国债收益率\t1.8200\t%\t中债登\t2026-03-30 10:32:27\n30007\tM2同比增速\t8.3000\t%\t央行\t2026-03-30 10:32:27\n30009\t5Y国债收益率\t1.6800\t%\t中债登\t2026-03-30 10:32:27\n30010\t国债发行规模\t2950.0000\t亿元\t财政部\t2026-03-30 10:32:27\n30005\tDR007\t1.4800\t%\t中国外汇交易中心\t2026-03-30 10:32:26\n30002\tCPI同比\t1.9000\t%\t国家统计局\t2026-03-30 10:32:26\n30004\t社会融资规模\t3.1000\t万亿元\t央行\t2026-03-30 10:32:26\n30006\t央行逆回购投放\t600.0000\t亿元\t央行\t2026-03-30 10:32:26\n30003\tPPI同比\t1.5000\t%\t国家统计局\t2026-03-30 10:32:26\n30001\t制造业PMI\t49.2000\t%\t国家统计局\t2026-03-30 10:32:25\n70\t央行逆回购投放\t500.0000\t亿元\t央行\t2026-03-30 09:25:17\n71\tM2同比增速\t8.5000\t%\t央行\t2026-03-30 09:25:17\n66\tCPI同比\t2.1000\t%\t国家统计局\t2026-03-30 09:25:17\n65\t制造业PMI\t49.5000\t%\t国家统计局\t2026-03-30 09:25:17\n",
+  "stderr": "",
+  "execution_time_ms": 1497
+}

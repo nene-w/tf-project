@@ -398,7 +398,8 @@ E：外部环境（美联储、中美利差、汇率）
           ],
         });
 
-        const content = response.choices[0]?.message.content || "无法生成报告";
+        const contentRaw = response.choices[0]?.message.content || "无法生成报告";
+        const content = typeof contentRaw === 'string' ? contentRaw : JSON.stringify(contentRaw);
         
         // 提取 JSON
         let dimensionScores = { F: 0, L: 0, A: 0, M: 0, E: 0 };
@@ -419,7 +420,7 @@ E：外部环境（美联储、中美利差、汇率）
           title: `周度 FLAME 分析报告 (${new Date().toLocaleDateString()})`,
           startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
           endDate: new Date(),
-          content: content.replace(/\{[\s\S]*?\}/, "").trim(), // 移除 JSON 部分显示
+          content: (typeof content === 'string' ? content : JSON.stringify(content)).replace(/\{[\s\S]*?\}/, "").trim(), // 移除 JSON 部分显示
           dimensionScores,
           keyExpectationGaps,
           viewIds: views.map(v => v.id),

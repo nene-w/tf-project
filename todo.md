@@ -132,3 +132,11 @@
 - [x] 优先使用新浪财经、东方财富、中债登等实时数据源
 - [x] 创建 fetch_realtime_flame_data.py 脚本
 - [x] 更新 generateFLAMEData.ts 调用新的实时数据脚本
+
+
+## GitHub 同步更新（新增）
+
+- [x] 从 GitHub 拉取同事的最新功能更新
+- [x] 验证代码冲突和合并
+- [x] 测试新功能是否正常工作
+- [x] 保存检查点并重新上线

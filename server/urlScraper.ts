@@ -64,9 +64,10 @@ E (External)：外部环境（美联储、中美利差、汇率）
     });
 
     const aiResultRaw = aiResponse.choices[0]?.message.content || "{}";
+    const aiResultStr = typeof aiResultRaw === 'string' ? aiResultRaw : JSON.stringify(aiResultRaw);
     let aiResult;
     try {
-      const cleanJson = aiResultRaw.replace(/```json|```/g, "").trim();
+      const cleanJson = aiResultStr.replace(/```json|```/g, "").trim();
       aiResult = JSON.parse(cleanJson);
     } catch (e) {
       console.error("[URL Scraper] AI JSON parse error:", e, aiResultRaw);
