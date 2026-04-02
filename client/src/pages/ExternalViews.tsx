@@ -110,8 +110,14 @@ export default function ExternalViews() {
       <div className="container py-8">
         {/* Text Input Modal */}
         {isTextModalOpen && (
-          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <Card className="w-full max-w-2xl p-6 shadow-2xl border-accent/20 max-h-[90vh] overflow-y-auto">
+          <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setIsTextModalOpen(false)}
+          >
+            <Card 
+              className="w-full max-w-2xl p-6 shadow-2xl border-accent/20 max-h-[90vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
               <h2 className="text-xl font-bold mb-4">提交文章</h2>
               <p className="text-sm text-muted-foreground mb-6">
                 复制粘贴微信公众号或其他来源的文章内容，系统将自动按 FLAME 框架进行分析。
