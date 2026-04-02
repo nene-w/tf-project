@@ -2,7 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, ExternalLink, Sparkles, Loader2, FileText, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Plus, ExternalLink, Sparkles, Loader2, FileText, TrendingUp, TrendingDown, Minus, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -12,6 +12,7 @@ export default function ExternalViews() {
   const [inputContent, setInputContent] = useState("");
   const [inputAuthor, setInputAuthor] = useState("");
   const [showWeeklyReport, setShowWeeklyReport] = useState(false);
+  const [selectedViewForFullText, setSelectedViewForFullText] = useState<any>(null);
 
   const { data: views, refetch, isLoading: isListLoading } = trpc.externalViews.list.useQuery({
     limit: 50,
@@ -250,20 +251,70 @@ export default function ExternalViews() {
                   </div>
                 </div>
 
-                {view.relatedContracts && Array.isArray(view.relatedContracts) && view.relatedContracts.length > 0 ? (
-                  <div className="pt-4 mt-4 border-t border-border/50 flex flex-wrap gap-2">
-                    {(view.relatedContracts as string[]).map((contract: string) => (
-                      <Badge key={contract} variant="secondary" className="bg-muted text-muted-foreground border-none text-[10px]">
-                        {contract}
-                      </Badge>
-                    ))}
+                <div className="pt-4 mt-4 border-t border-border/50 flex items-center justify-between">
+                  <div className="flex flex-wrap gap-2 flex-1">
+                    {view.relatedContracts && Array.isArray(view.relatedContracts) && view.relatedContracts.length > 0 ? (
+                      (view.relatedContracts as string[]).map((contract: string) => (
+                        <Badge key={contract} variant="secondary" className="bg-muted text-muted-foreground border-none text-[10px]">
+                          {contract}
+                        </Badge>
+                      ))
+                    ) : null}
                   </div>
-                ) : null}
+                  {view.fullContent && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="ml-2 text-xs"
+                      onClick={() => setSelectedViewForFullText(view)}
+                    >
+                      <FileText className="w-3 h-3 mr-1" />
+                      查看全文
+                    </Button>
+                  )}
+                </div>
               </div>
             ))
           )}
         </div>
       </div>
+
+      {/* Full Text Modal */}
+      {selectedViewForFullText && (
+        <div 
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setSelectedViewForFullText(null)}
+        >
+          <Card 
+            className="w-full max-w-3xl max-h-[80vh] overflow-y-auto bg-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="sticky top-0 bg-card border-b border-border/50 p-6 flex items-center justify-between">
+              <div className="flex-1">
+                <h2 className="text-xl font-bold mb-2">{selectedViewForFullText.title}</h2>
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium text-accent">{selectedViewForFullText.sourceName}</span>
+                  {selectedViewForFullText.author && ` • ${selectedViewForFullText.author}`}
+                  {selectedViewForFullText.createdAt && ` • ${new Date(selectedViewForFullText.createdAt).toLocaleDateString()}`}
+                </p>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="rounded-full h-8 w-8 p-0 ml-2"
+                onClick={() => setSelectedViewForFullText(null)}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            <div className="p-6">
+              <div className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                {selectedViewForFullText.fullContent}
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
