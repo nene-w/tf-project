@@ -556,8 +556,8 @@ E：外部环境（美联储、中美利差、汇率）
     submitText: protectedProcedure
       .input(
         z.object({
-          title: z.string(),
-          content: z.string(),
+          title: z.string().min(1, "标题不能为空").max(255, "标题过长"),
+          content: z.string().min(10, "内容至少需要 10 个字符"),
           author: z.string().optional(),
         })
       )
@@ -637,12 +637,15 @@ ${input.content}`,
 
           // 保存到数据库
           console.log("[submitText] Saving to database", { title: input.title });
+          
+          const summary = analysisData.summary || input.title || "文章摘要";
+          
           const result = await createExternalView({
             sourceType: "user_submission",
             sourceName: input.author || "用户提交",
             author: input.author,
             title: input.title,
-            summary: analysisData.summary,
+            summary: summary,
             fullContent: input.content,
             sentiment: analysisData.sentimentScore > 0 ? "bullish" : analysisData.sentimentScore < 0 ? "bearish" : "neutral",
             flameDimension: analysisData.flameDimension,
