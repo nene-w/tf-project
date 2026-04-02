@@ -553,6 +553,93 @@ E：外部环境（美联储、中美利差、汇率）
         }
       }),
 
+    submitText: protectedProcedure
+      .input(
+        z.object({
+          title: z.string(),
+          content: z.string(),
+          author: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        // 调用 LLM 进行 FLAME 分析
+        const response = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `你是一位专业的国债期货分析师。请基于用户提交的文章内容，按照 FLAME 框架进行分析。
+              
+分析要求：
+1. 识别文章主要涉及的 FLAME 维度（F-基本面、L-流动性、A-债券供需、M-市场情绪、E-外部环境）
+2. 给出情绪评分（-5 到 +5，负数表示看空，正数表示看多）
+3. 提取核心预期差（市场共识与现实的差异）
+4. 识别相关的国债期货合约
+
+输出格式（JSON）：
+{
+  "flameDimension": "F|L|A|M|E",
+  "sentimentScore": 0,
+  "summary": "文章核心观点摘要",
+  "expectationGap": "识别的预期差",
+  "relatedContracts": ["T2406", "F2406"]
+}`,
+            },
+            {
+              role: "user",
+              content: `请分析以下文章：
+
+标题：${input.title}
+
+内容：
+${input.content}`,
+            },
+          ],
+        });
+
+        const contentRaw = response.choices[0]?.message.content || "{}";
+        const contentStr = typeof contentRaw === 'string' ? contentRaw : JSON.stringify(contentRaw);
+        
+        // 提取 JSON
+        let analysisData = {
+          flameDimension: "F",
+          sentimentScore: 0,
+          summary: input.title,
+          expectationGap: "",
+          relatedContracts: [],
+        };
+        
+        try {
+          const jsonMatch = contentStr.match(/\{[\s\S]*?\}/);  
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            analysisData = {
+              flameDimension: parsed.flameDimension || "F",
+              sentimentScore: parsed.sentimentScore || 0,
+              summary: parsed.summary || input.title,
+              expectationGap: parsed.expectationGap || "",
+              relatedContracts: parsed.relatedContracts || [],
+            };
+          }
+        } catch (e) {
+          console.error("解析 FLAME 分析 JSON 失败", e);
+        }
+
+        // 保存到数据库
+        return await createExternalView({
+          sourceType: "user_submission",
+          sourceName: input.author || "用户提交",
+          author: input.author,
+          title: input.title,
+          summary: analysisData.summary,
+          fullContent: input.content,
+          sentiment: analysisData.sentimentScore > 0 ? "bullish" : analysisData.sentimentScore < 0 ? "bearish" : "neutral",
+          flameDimension: analysisData.flameDimension,
+          sentimentScore: analysisData.sentimentScore,
+          expectationGap: analysisData.expectationGap,
+          relatedContracts: analysisData.relatedContracts,
+        });
+      }),
+
     create: protectedProcedure
       .input(
         z.object({

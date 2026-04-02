@@ -1,15 +1,16 @@
-// @ts-nocheck
 import { trpc } from "@/lib/trpc";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, ExternalLink, Sparkles, Link as LinkIcon, Loader2, FileText, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Plus, ExternalLink, Sparkles, Loader2, FileText, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 export default function ExternalViews() {
-  const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
-  const [inputUrl, setInputUrl] = useState("");
+  const [isTextModalOpen, setIsTextModalOpen] = useState(false);
+  const [inputTitle, setInputTitle] = useState("");
+  const [inputContent, setInputContent] = useState("");
+  const [inputAuthor, setInputAuthor] = useState("");
   const [showWeeklyReport, setShowWeeklyReport] = useState(false);
 
   const { data: views, refetch, isLoading: isListLoading } = trpc.externalViews.list.useQuery({
@@ -19,22 +20,24 @@ export default function ExternalViews() {
 
   const { data: weeklyReports } = trpc.viewConclusions.weeklyReports.useQuery({ limit: 5 });
 
-  const fetchByUrlMutation = trpc.externalViews.fetchByUrl.useMutation({
-    onSuccess: (data) => {
+  const submitTextMutation = trpc.externalViews.submitText.useMutation({
+    onSuccess: (data: any) => {
       refetch();
-      setIsUrlModalOpen(false);
-      setInputUrl("");
-      toast.success(`成功抓取并分析文章：${data.data.title}`);
+      setIsTextModalOpen(false);
+      setInputTitle("");
+      setInputContent("");
+      setInputAuthor("");
+      const title = data?.data?.title || data?.title || inputTitle;
+      toast.success(`成功提交文章：${title}`);
     },
-    onError: (error) => {
-      toast.error(`抓取失败: ${error.message}`);
+    onError: (error: any) => {
+      toast.error(`提交失败: ${error?.message || "未知错误"}`);
     }
   });
 
   const generateWeeklyReportMutation = trpc.externalViews.generateWeeklyFlameReport.useMutation({
     onSuccess: () => {
       toast.success("周度 FLAME 综合报告生成成功！");
-      // 刷新报告列表（如果需要）
     },
     onError: (error) => {
       toast.error(`生成失败: ${error.message}`);
@@ -42,7 +45,7 @@ export default function ExternalViews() {
   });
 
   const getDimensionLabel = (dim: string) => {
-    const labels = {
+    const labels: Record<string, string> = {
       F: "F-基本面",
       L: "L-流动性",
       A: "A-供需",
@@ -58,10 +61,17 @@ export default function ExternalViews() {
     return <Minus className="w-3 h-3 mr-1 text-yellow-600" />;
   };
 
-  const handleUrlSubmit = (e: React.FormEvent) => {
+  const handleTextSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputUrl) return;
-    fetchByUrlMutation.mutate({ url: inputUrl });
+    if (!inputTitle || !inputContent) {
+      toast.error("标题和内容不能为空");
+      return;
+    }
+    submitTextMutation.mutate({ 
+      title: inputTitle, 
+      content: inputContent,
+      author: inputAuthor || "用户提交"
+    });
   };
 
   return (
@@ -78,11 +88,11 @@ export default function ExternalViews() {
           <div className="flex gap-2">
             <Button 
               className="button-primary"
-              onClick={() => setIsUrlModalOpen(true)}
-              disabled={fetchByUrlMutation.isPending}
+              onClick={() => setIsTextModalOpen(true)}
+              disabled={submitTextMutation.isPending}
             >
-              <LinkIcon className="w-4 h-4 mr-2" />
-              抓取网页文章
+              <Plus className="w-4 h-4 mr-2" />
+              提交文章
             </Button>
             <Button 
               className="button-primary"
@@ -98,30 +108,50 @@ export default function ExternalViews() {
       </div>
 
       <div className="container py-8">
-        {/* URL Input Modal */}
-        {isUrlModalOpen && (
+        {/* Text Input Modal */}
+        {isTextModalOpen && (
           <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <Card className="w-full max-w-md p-6 shadow-2xl border-accent/20">
-              <h2 className="text-xl font-bold mb-4">抓取网页文章</h2>
+            <Card className="w-full max-w-2xl p-6 shadow-2xl border-accent/20 max-h-[90vh] overflow-y-auto">
+              <h2 className="text-xl font-bold mb-4">提交文章</h2>
               <p className="text-sm text-muted-foreground mb-6">
-                输入文章链接，系统将自动按 **FLAME 框架** 提取维度评分与**预期差**。
+                复制粘贴微信公众号或其他来源的文章内容，系统将自动按 FLAME 框架进行分析。
               </p>
-              <form onSubmit={handleUrlSubmit} className="space-y-4">
+              <form onSubmit={handleTextSubmit} className="space-y-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">文章链接</label>
+                  <label className="text-sm font-medium">文章标题 *</label>
                   <input
-                    type="url"
+                    type="text"
                     className="w-full p-2 rounded-md border border-input bg-background focus:ring-2 focus:ring-accent outline-none"
-                    placeholder="https://mp.weixin.qq.com/s/..."
-                    value={inputUrl}
-                    onChange={(e) => setInputUrl(e.target.value)}
+                    placeholder="输入文章标题"
+                    value={inputTitle}
+                    onChange={(e) => setInputTitle(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">作者（可选）</label>
+                  <input
+                    type="text"
+                    className="w-full p-2 rounded-md border border-input bg-background focus:ring-2 focus:ring-accent outline-none"
+                    placeholder="输入作者名称"
+                    value={inputAuthor}
+                    onChange={(e) => setInputAuthor(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">文章内容 *</label>
+                  <textarea
+                    className="w-full p-3 rounded-md border border-input bg-background focus:ring-2 focus:ring-accent outline-none min-h-[300px] resize-none"
+                    placeholder="复制粘贴文章内容..."
+                    value={inputContent}
+                    onChange={(e) => setInputContent(e.target.value)}
                     required
                   />
                 </div>
                 <div className="flex justify-end gap-3 pt-4">
-                  <Button type="button" variant="ghost" onClick={() => setIsUrlModalOpen(false)}>取消</Button>
-                  <Button type="submit" className="button-primary" disabled={fetchByUrlMutation.isPending}>
-                    {fetchByUrlMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : '开始抓取'}
+                  <Button type="button" variant="ghost" onClick={() => setIsTextModalOpen(false)}>取消</Button>
+                  <Button type="submit" className="button-primary" disabled={submitTextMutation.isPending}>
+                    {submitTextMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : '提交分析'}
                   </Button>
                 </div>
               </form>
@@ -166,7 +196,7 @@ export default function ExternalViews() {
             </div>
           ) : !views || views.length === 0 ? (
             <Card className="card-elegant h-32 flex items-center justify-center text-muted-foreground">
-              暂无观点数据，请先抓取文章
+              暂无观点数据，请先提交文章
             </Card>
           ) : (
             views.map((view) => (
@@ -179,8 +209,8 @@ export default function ExternalViews() {
                         {getDimensionLabel(view.flameDimension || "F")}
                       </Badge>
                       <div className="flex items-center px-2 py-0.5 rounded bg-muted text-xs font-bold">
-                        {getScoreIcon(view.sentimentScore || 0)}
-                        评分: {view.sentimentScore > 0 ? `+${view.sentimentScore}` : view.sentimentScore}
+                        {getScoreIcon((view.sentimentScore || 0) as number)}
+                        评分: {(view.sentimentScore || 0) > 0 ? `+${view.sentimentScore}` : view.sentimentScore}
                       </div>
                     </div>
                     <p className="text-sm text-muted-foreground mb-2">
@@ -214,15 +244,15 @@ export default function ExternalViews() {
                   </div>
                 </div>
 
-                {view.relatedContracts && (
+                {view.relatedContracts && Array.isArray(view.relatedContracts) && view.relatedContracts.length > 0 ? (
                   <div className="pt-4 mt-4 border-t border-border/50 flex flex-wrap gap-2">
-                    {(view.relatedContracts as string[]).map((contract) => (
+                    {(view.relatedContracts as string[]).map((contract: string) => (
                       <Badge key={contract} variant="secondary" className="bg-muted text-muted-foreground border-none text-[10px]">
                         {contract}
                       </Badge>
                     ))}
                   </div>
-                )}
+                ) : null}
               </div>
             ))
           )}
