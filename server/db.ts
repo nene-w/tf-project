@@ -11,6 +11,7 @@ import {
   tradeRecords,
   tradeReviews,
   dashboardConfigs,
+  weeklyFlameReports,
 } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
@@ -234,6 +235,39 @@ export async function createViewConclusion(
   if (!db) throw new Error("Database not available");
 
   return await db.insert(viewConclusions).values(conclusion);
+}
+
+export async function getWeeklyViews(userId: number, days = 7) {
+  const db = await getDb();
+  if (!db) return [];
+
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+
+  return await db
+    .select()
+    .from(externalViews)
+    .where(gte(externalViews.createdAt, startDate))
+    .orderBy(desc(externalViews.createdAt));
+}
+
+export async function createWeeklyFlameReport(report: typeof weeklyFlameReports.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.insert(weeklyFlameReports).values(report);
+}
+
+export async function getWeeklyFlameReports(userId: number, limit = 10) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select()
+    .from(weeklyFlameReports)
+    .where(eq(weeklyFlameReports.userId, userId))
+    .orderBy(desc(weeklyFlameReports.createdAt))
+    .limit(limit);
 }
 
 // ============ Trade Records ============

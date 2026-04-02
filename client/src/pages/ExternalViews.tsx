@@ -3,18 +3,21 @@ import { trpc } from "@/lib/trpc";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, ExternalLink, Sparkles, Link as LinkIcon, Loader2 } from "lucide-react";
+import { Plus, ExternalLink, Sparkles, Link as LinkIcon, Loader2, FileText, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 export default function ExternalViews() {
   const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
   const [inputUrl, setInputUrl] = useState("");
+  const [showWeeklyReport, setShowWeeklyReport] = useState(false);
 
   const { data: views, refetch, isLoading: isListLoading } = trpc.externalViews.list.useQuery({
     limit: 50,
     offset: 0,
   });
+
+  const { data: weeklyReports } = trpc.viewConclusions.weeklyReports.useQuery({ limit: 5 });
 
   const fetchByUrlMutation = trpc.externalViews.fetchByUrl.useMutation({
     onSuccess: (data) => {
@@ -28,34 +31,31 @@ export default function ExternalViews() {
     }
   });
 
-  const scrapeHiborPuppeteerMutation = trpc.externalViews.scrapeHiborPuppeteer.useMutation({
-    onSuccess: (data) => {
-      refetch();
-      toast.success(`成功抓取！共获取 ${data.totalReports} 篇研报`);
+  const generateWeeklyReportMutation = trpc.externalViews.generateWeeklyFlameReport.useMutation({
+    onSuccess: () => {
+      toast.success("周度 FLAME 综合报告生成成功！");
+      // 刷新报告列表（如果需要）
     },
     onError: (error) => {
-      toast.error('抓取失败，请稍后重试');
+      toast.error(`生成失败: ${error.message}`);
     }
   });
 
-  const autoAnalyzeMutation = trpc.viewConclusions.autoAnalyze.useMutation({
-    onSuccess: (data) => {
-      toast.success(`成功生成结论！`);
-    },
-    onError: (error) => {
-      toast.error('AI 分析失败，请稍后重试');
-    }
-  });
+  const getDimensionLabel = (dim: string) => {
+    const labels = {
+      F: "F-基本面",
+      L: "L-流动性",
+      A: "A-供需",
+      M: "M-情绪",
+      E: "E-外部环境"
+    };
+    return labels[dim] || dim;
+  };
 
-  const getSentimentColor = (sentiment: string) => {
-    switch (sentiment) {
-      case "bullish":
-        return "bg-green-500/10 text-green-600";
-      case "bearish":
-        return "bg-red-500/10 text-red-600";
-      default:
-        return "bg-yellow-500/10 text-yellow-600";
-    }
+  const getScoreIcon = (score: number) => {
+    if (score > 0) return <TrendingUp className="w-3 h-3 mr-1 text-green-600" />;
+    if (score < 0) return <TrendingDown className="w-3 h-3 mr-1 text-red-600" />;
+    return <Minus className="w-3 h-3 mr-1 text-yellow-600" />;
   };
 
   const handleUrlSubmit = (e: React.FormEvent) => {
@@ -70,9 +70,9 @@ export default function ExternalViews() {
       <div className="border-b border-border/50 backdrop-blur-sm sticky top-0 z-40">
         <div className="container flex items-center justify-between h-16">
           <div>
-            <h1 className="text-2xl font-bold">外部观点</h1>
+            <h1 className="text-2xl font-bold">外部观点 (FLAME 框架)</h1>
             <p className="text-sm text-muted-foreground">
-              汇总分析师观点和市场共识
+              基于 FLAME 框架识别预期差与市场共识
             </p>
           </div>
           <div className="flex gap-2">
@@ -86,34 +86,25 @@ export default function ExternalViews() {
             </Button>
             <Button 
               className="button-primary"
-              onClick={() => scrapeHiborPuppeteerMutation.mutate()}
-              disabled={scrapeHiborPuppeteerMutation.isPending}
+              onClick={() => generateWeeklyReportMutation.mutate()}
+              disabled={generateWeeklyReportMutation.isPending}
               variant="outline"
             >
-              <Sparkles className="w-4 h-4 mr-2" />
-              {scrapeHiborPuppeteerMutation.isPending ? '抓取中...' : '自动抓取研报'}
-            </Button>
-            <Button 
-              className="button-primary"
-              onClick={() => autoAnalyzeMutation.mutate()}
-              disabled={autoAnalyzeMutation.isPending}
-              variant="outline"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              {autoAnalyzeMutation.isPending ? '分析中...' : 'AI 自动分析'}
+              <FileText className="w-4 h-4 mr-2" />
+              {generateWeeklyReportMutation.isPending ? '报告生成中...' : '生成周度综合报告'}
             </Button>
           </div>
         </div>
       </div>
 
       <div className="container py-8">
-        {/* URL Input Modal (Simple implementation) */}
+        {/* URL Input Modal */}
         {isUrlModalOpen && (
           <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <Card className="w-full max-w-md p-6 shadow-2xl border-accent/20">
               <h2 className="text-xl font-bold mb-4">抓取网页文章</h2>
               <p className="text-sm text-muted-foreground mb-6">
-                输入微信公众号或其他网页链接，系统将自动提取内容并进行 AI 分析。
+                输入文章链接，系统将自动按 **FLAME 框架** 提取维度评分与**预期差**。
               </p>
               <form onSubmit={handleUrlSubmit} className="space-y-4">
                 <div className="space-y-2">
@@ -128,25 +119,9 @@ export default function ExternalViews() {
                   />
                 </div>
                 <div className="flex justify-end gap-3 pt-4">
-                  <Button 
-                    type="button" 
-                    variant="ghost" 
-                    onClick={() => setIsUrlModalOpen(false)}
-                    disabled={fetchByUrlMutation.isPending}
-                  >
-                    取消
-                  </Button>
-                  <Button 
-                    type="submit" 
-                    className="button-primary"
-                    disabled={fetchByUrlMutation.isPending}
-                  >
-                    {fetchByUrlMutation.isPending ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        抓取分析中...
-                      </>
-                    ) : '开始抓取'}
+                  <Button type="button" variant="ghost" onClick={() => setIsUrlModalOpen(false)}>取消</Button>
+                  <Button type="submit" className="button-primary" disabled={fetchByUrlMutation.isPending}>
+                    {fetchByUrlMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : '开始抓取'}
                   </Button>
                 </div>
               </form>
@@ -154,20 +129,44 @@ export default function ExternalViews() {
           </div>
         )}
 
+        {/* Weekly Reports Section (If any) */}
+        {weeklyReports && weeklyReports.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-lg font-bold mb-4 flex items-center">
+              <Sparkles className="w-5 h-5 mr-2 text-accent" />
+              最新周度 FLAME 综合报告
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {weeklyReports.map(report => (
+                <Card key={report.id} className="p-4 border-accent/20 bg-accent/5 hover:bg-accent/10 transition-colors cursor-pointer">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-bold text-accent">{report.title}</h3>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {new Date(report.startDate).toLocaleDateString()} - {new Date(report.endDate).toLocaleDateString()}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="border-accent text-accent">周报</Badge>
+                  </div>
+                  <p className="text-sm mt-3 line-clamp-2 text-muted-foreground italic">
+                    "预期差：{report.keyExpectationGaps}"
+                  </p>
+                </Card>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Views Grid */}
         <div className="space-y-4">
+          <h2 className="text-lg font-bold mb-4">观点流</h2>
           {isListLoading ? (
             <div className="h-64 flex items-center justify-center">
               <Loader2 className="w-8 h-8 animate-spin text-accent" />
             </div>
           ) : !views || views.length === 0 ? (
-            <Card className="card-elegant">
-              <div className="h-32 flex flex-col items-center justify-center">
-                <p className="text-muted-foreground mb-4">暂无观点数据</p>
-                <Button className="button-primary" onClick={() => setIsUrlModalOpen(true)}>
-                  添加第一个观点
-                </Button>
-              </div>
+            <Card className="card-elegant h-32 flex items-center justify-center text-muted-foreground">
+              暂无观点数据，请先抓取文章
             </Card>
           ) : (
             views.map((view) => (
@@ -176,9 +175,13 @@ export default function ExternalViews() {
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="font-semibold text-lg">{view.title}</h3>
-                      <Badge className={getSentimentColor(view.sentiment || "neutral")}>
-                        {view.sentiment === 'bullish' ? '看涨' : view.sentiment === 'bearish' ? '看跌' : '中性'}
+                      <Badge className="bg-accent/10 text-accent border-none">
+                        {getDimensionLabel(view.flameDimension || "F")}
                       </Badge>
+                      <div className="flex items-center px-2 py-0.5 rounded bg-muted text-xs font-bold">
+                        {getScoreIcon(view.sentimentScore || 0)}
+                        评分: {view.sentimentScore > 0 ? `+${view.sentimentScore}` : view.sentimentScore}
+                      </div>
                     </div>
                     <p className="text-sm text-muted-foreground mb-2">
                       <span className="font-medium text-accent">{view.sourceName}</span>
@@ -195,17 +198,29 @@ export default function ExternalViews() {
                   )}
                 </div>
 
-                <p className="text-sm text-foreground leading-relaxed mb-4 line-clamp-3">{view.summary}</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">观点摘要</p>
+                    <p className="text-sm text-foreground leading-relaxed line-clamp-4">{view.summary}</p>
+                  </div>
+                  <div className="bg-accent/5 p-3 rounded-lg border border-accent/10">
+                    <p className="text-xs font-bold text-accent uppercase tracking-wider mb-2 flex items-center">
+                      <Sparkles className="w-3 h-3 mr-1" />
+                      核心预期差
+                    </p>
+                    <p className="text-sm text-foreground leading-relaxed italic">
+                      {view.expectationGap || "未识别到明显预期差"}
+                    </p>
+                  </div>
+                </div>
 
                 {view.relatedContracts && (
-                  <div className="pt-4 border-t border-border/50">
-                    <div className="flex flex-wrap gap-2">
-                      {(view.relatedContracts as string[]).map((contract) => (
-                        <Badge key={contract} variant="secondary" className="bg-accent/5 text-accent-foreground border-none">
-                          {contract}
-                        </Badge>
-                      ))}
-                    </div>
+                  <div className="pt-4 mt-4 border-t border-border/50 flex flex-wrap gap-2">
+                    {(view.relatedContracts as string[]).map((contract) => (
+                      <Badge key={contract} variant="secondary" className="bg-muted text-muted-foreground border-none text-[10px]">
+                        {contract}
+                      </Badge>
+                    ))}
                   </div>
                 )}
               </div>

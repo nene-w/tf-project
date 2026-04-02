@@ -26,6 +26,9 @@ import {
   getDashboardConfig,
   createOrUpdateDashboardConfig,
   getTradeStatistics,
+  getWeeklyViews,
+  createWeeklyFlameReport,
+  getWeeklyFlameReports,
 } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { fetchEmailSignals, startEmailPolling } from "./emailService";
@@ -348,6 +351,81 @@ E：外部环境（美联储、中美利差、汇率）
         return await fetchAndAnalyzeUrl(ctx.user.id, input.url);
       }),
 
+    generateWeeklyFlameReport: protectedProcedure
+      .mutation(async ({ ctx }) => {
+        const views = await getWeeklyViews(ctx.user.id, 7);
+        if (views.length === 0) {
+          throw new Error("过去 7 天内没有抓取到任何外部观点，无法生成报告");
+        }
+
+        const viewsContext = views
+          .map((v) => `[${v.flameDimension}] ${v.title} (评分: ${v.sentimentScore})\n摘要: ${v.summary}\n预期差: ${v.expectationGap}`)
+          .join("\n---\n");
+
+        const response = await invokeLLM({
+          messages: [
+            {
+              role: "system",
+              content: `你是一位专业的国债期货首席分析师。请基于过去一周抓取的多篇外部观点文章，生成一份周度 FLAME 综合分析报告。
+              
+报告核心要求：
+1. 汇总各维度的多空力量对比。
+2. 重点分析“市场预期”与“现实情况”的背离点（预期差）。
+3. 给出下周的交易策略建议。
+
+输出格式要求（Markdown）：
+# 周度国债期货 FLAME 综合分析报告
+
+## 1. FLAME 维度汇总
+(展示各维度的多空分布)
+
+## 2. 核心预期差识别
+(重点分析市场共识与现实的差异)
+
+## 3. 综合研判与策略建议
+(给出具体的久期、方向建议)
+
+最后请输出一个 JSON 块（用于系统解析评分）：
+{
+  "dimensionScores": {"F": 0, "L": 0, "A": 0, "M": 0, "E": 0},
+  "keyExpectationGaps": "总结性的预期差描述"
+}`,
+            },
+            {
+              role: "user",
+              content: `以下是本周收集的外部观点数据：\n\n${viewsContext}`,
+            },
+          ],
+        });
+
+        const content = response.choices[0]?.message.content || "无法生成报告";
+        
+        // 提取 JSON
+        let dimensionScores = { F: 0, L: 0, A: 0, M: 0, E: 0 };
+        let keyExpectationGaps = "";
+        try {
+          const jsonMatch = content.match(/\{[\s\S]*?\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            dimensionScores = parsed.dimensionScores || dimensionScores;
+            keyExpectationGaps = parsed.keyExpectationGaps || "";
+          }
+        } catch (e) {
+          console.error("解析报告 JSON 失败", e);
+        }
+
+        return await createWeeklyFlameReport({
+          userId: ctx.user.id,
+          title: `周度 FLAME 分析报告 (${new Date().toLocaleDateString()})`,
+          startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+          endDate: new Date(),
+          content: content.replace(/\{[\s\S]*?\}/, "").trim(), // 移除 JSON 部分显示
+          dimensionScores,
+          keyExpectationGaps,
+          viewIds: views.map(v => v.id),
+        });
+      }),
+
     scrapeHiborAdvanced: protectedProcedure
       .mutation(async ({ ctx }) => {
         try {
@@ -509,6 +587,12 @@ E：外部环境（美联储、中美利差、汇率）
       .input(z.object({ limit: z.number().default(10), offset: z.number().default(0) }))
       .query(async ({ input, ctx }) => {
         return await getViewConclusions(ctx.user.id, input.limit, input.offset);
+      }),
+
+    weeklyReports: protectedProcedure
+      .input(z.object({ limit: z.number().default(10) }))
+      .query(async ({ input, ctx }) => {
+        return await getWeeklyFlameReports(ctx.user.id, input.limit);
       }),
 
     autoAnalyze: protectedProcedure

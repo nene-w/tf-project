@@ -148,6 +148,12 @@ export const externalViews = mysqlTable("external_views", {
   sentiment: mysqlEnum("sentiment", ["bullish", "bearish", "neutral"]).default("neutral"),
   // 观点相关合约
   relatedContracts: json("relatedContracts"),
+  // FLAME 维度：F, L, A, M, E
+  flameDimension: varchar("flameDimension", { length: 10 }),
+  // 情感评分：-5 到 +5
+  sentimentScore: int("sentimentScore").default(0),
+  // 预期与现实之差分析
+  expectationGap: text("expectationGap"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -270,3 +276,30 @@ export const dashboardConfigs = mysqlTable("dashboard_configs", {
 
 export type DashboardConfig = typeof dashboardConfigs.$inferSelect;
 export type InsertDashboardConfig = typeof dashboardConfigs.$inferInsert;
+
+/**
+ * 周度 FLAME 综合报告表
+ */
+export const weeklyFlameReports = mysqlTable("weekly_flame_reports", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  // 报告标题
+  title: varchar("title", { length: 255 }).notNull(),
+  // 报告开始日期
+  startDate: timestamp("startDate").notNull(),
+  // 报告结束日期
+  endDate: timestamp("endDate").notNull(),
+  // 综合分析内容（Markdown）
+  content: text("content").notNull(),
+  // 各维度评分汇总 (JSON)
+  dimensionScores: json("dimensionScores"),
+  // 核心预期差识别
+  keyExpectationGaps: text("keyExpectationGaps"),
+  // 包含的观点 ID (JSON)
+  viewIds: json("viewIds"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type WeeklyFlameReport = typeof weeklyFlameReports.$inferSelect;
+export type InsertWeeklyFlameReport = typeof weeklyFlameReports.$inferInsert;
