@@ -96,16 +96,20 @@ class TQDataProvider:
     def connect(self) -> bool:
         """连接天勤"""
         try:
-            # 使用天勤账户连接
-            self.account = TqAccount(self.username, self.password)
-            self.api = TqApi(self.account)
+            # TQAccount 需要 broker_id, account_id, password
+            # 对于手机号登录的用户，使用手机号作为 account_id
+            self.account = TqAccount("", self.username, self.password)
+            self.api = TqApi(self.account, web_gui=False)
             logger.info(f"Connected to TQ with account: {self.username}")
             
             # 订阅合约
             for contract in self.contracts:
-                quote = self.api.get_quote(contract)
-                self.quotes[contract] = quote
-                logger.info(f"Subscribed to {contract}")
+                try:
+                    quote = self.api.get_quote(contract)
+                    self.quotes[contract] = quote
+                    logger.info(f"Subscribed to {contract}")
+                except Exception as e:
+                    logger.warning(f"Failed to subscribe to {contract}: {e}")
             
             return True
         except Exception as e:

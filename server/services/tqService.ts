@@ -201,12 +201,12 @@ class TQService extends EventEmitter {
                 clearTimeout(timeout);
                 this.isRunning = true;
                 resolve({ success: true });
-              } else if (msg.type === "quote") {
+              } else if (msg.type === "quotes" || msg.type === "quote") {
                 this.emit("quotes", msg.data);
               } else if (msg.type === "kline") {
                 this.emit("kline", msg.data);
               } else if (msg.type === "error") {
-                this.emit("error", msg.message);
+                this.emit("error", msg.error || msg.message);
               }
             } catch {
               // ignore non-JSON output
