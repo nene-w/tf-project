@@ -2,14 +2,11 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
-import { Server as SocketIOServer } from "socket.io";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
-import { tqService } from "../services/tqService";
-import { signalService } from "../services/signalService";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -33,43 +30,6 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   const server = createServer(app);
-
-  // Initialize Socket.io
-  const io = new SocketIOServer(server, {
-    cors: {
-      origin: "*",
-      methods: ["GET", "POST"],
-    },
-  });
-
-  // Setup Socket.io events
-  io.on("connection", (socket) => {
-    console.log("[Socket] Client connected:", socket.id);
-
-    // Send current status
-    socket.emit("status", tqService.getStatus());
-
-    socket.on("disconnect", () => {
-      console.log("[Socket] Client disconnected:", socket.id);
-    });
-  });
-
-  // Forward TQ events to all connected clients
-  tqService.on("quotes", (quotes) => {
-    io.emit("quotes", quotes);
-  });
-
-  tqService.on("kline", (kline) => {
-    io.emit("kline", kline);
-  });
-
-  tqService.on("status", (status) => {
-    io.emit("status", status);
-  });
-
-  // Start Signal Monitoring
-  signalService.start();
-
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
