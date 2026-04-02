@@ -615,16 +615,24 @@ ${input.content}`,
           const jsonMatch = contentStr.match(/\{[\s\S]*?\}/);  
           if (jsonMatch) {
             const parsed = JSON.parse(jsonMatch[0]);
+            let summary = parsed.summary || input.title;
+            if (typeof summary === 'string' && summary.length > 500) {
+              summary = summary.substring(0, 500) + '...';
+            }
             analysisData = {
               flameDimension: parsed.flameDimension || "F",
               sentimentScore: parsed.sentimentScore || 0,
-              summary: parsed.summary || input.title,
+              summary: summary,
               expectationGap: parsed.expectationGap || "",
               relatedContracts: parsed.relatedContracts || [],
             };
+            console.log("[submitText] Analysis parsed", { summaryLen: summary.length });
+          } else {
+            console.warn("[submitText] No JSON found in LLM response");
           }
         } catch (e) {
-          console.error("解析 FLAME 分析 JSON 失败", e);
+          console.error("[submitText] JSON parse error", e);
+          analysisData.summary = input.title;
         }
 
           // 保存到数据库
