@@ -2,7 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, ExternalLink, Sparkles, Loader2, FileText, TrendingUp, TrendingDown, Minus, X } from "lucide-react";
+import { Plus, ExternalLink, Sparkles, Loader2, FileText, TrendingUp, TrendingDown, Minus, X, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -44,6 +44,22 @@ export default function ExternalViews() {
       toast.error(`生成失败: ${error.message}`);
     }
   });
+
+  const deleteViewMutation = trpc.externalViews.delete.useMutation({
+    onSuccess: () => {
+      refetch();
+      toast.success("文章已删除");
+    },
+    onError: (error: any) => {
+      toast.error(`删除失败: ${error?.message || "未知错误"}`);
+    }
+  });
+
+  const handleDeleteView = (id: number) => {
+    if (window.confirm("确定要删除这篇文章吗？")) {
+      deleteViewMutation.mutate({ id });
+    }
+  };
 
   const getDimensionLabel = (dim: string) => {
     const labels: Record<string, string> = {
@@ -261,17 +277,29 @@ export default function ExternalViews() {
                       ))
                     ) : null}
                   </div>
-                  {view.fullContent && (
+                  <div className="flex gap-2 ml-2">
+                    {view.fullContent && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="text-xs"
+                        onClick={() => setSelectedViewForFullText(view)}
+                      >
+                        <FileText className="w-3 h-3 mr-1" />
+                        查看全文
+                      </Button>
+                    )}
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      className="ml-2 text-xs"
-                      onClick={() => setSelectedViewForFullText(view)}
+                      className="text-xs text-destructive hover:text-destructive"
+                      onClick={() => handleDeleteView(view.id)}
+                      disabled={deleteViewMutation.isPending}
                     >
-                      <FileText className="w-3 h-3 mr-1" />
-                      查看全文
+                      <Trash2 className="w-3 h-3 mr-1" />
+                      删除
                     </Button>
-                  )}
+                  </div>
                 </div>
               </div>
             ))
