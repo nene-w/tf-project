@@ -29,8 +29,21 @@ import {
   getWeeklyViews,
   createWeeklyFlameReport,
   getWeeklyFlameReports,
+  getTqConfig,
+  createOrUpdateTqConfig,
+  getIndicators,
+  createIndicator,
+  updateIndicator,
+  getSignalRecords,
+  createSignalRecord,
+  getEmailConfig,
+  createOrUpdateEmailConfig,
+  getKlineCache,
 } from "./db";
 import { invokeLLM } from "./_core/llm";
+import { tqService, BOND_FUTURES_CONTRACTS } from "./services/tqService";
+import { parseTdxIndicator } from "./services/tdxParser";
+import { sendSignalEmail, testEmailConnection } from "./services/emailAlert";
 import { fetchEmailSignals, startEmailPolling } from "./emailService";
 
 export const appRouter = router({
@@ -952,6 +965,172 @@ ${input.content}`,
         recentTrades,
       };
     }),
+  }),
+
+  // ── TQ Config Router ───────────────────────────────────────────────────────
+  tq: router({
+    getConfig: protectedProcedure.query(async ({ ctx }) => {
+      const config = await getTqConfig(ctx.user.id);
+      if (!config) return null;
+      return {
+        ...config,
+        tqPassword: config.tqPassword ? "••••••••" : null,
+      };
+    }),
+    saveConfig: protectedProcedure
+      .input(z.object({
+        tqUsername: z.string().optional(),
+        tqPassword: z.string().optional(),
+        subscribedContracts: z.array(z.string()).optional(),
+        klinePeriod: z.number().optional(),
+        isEnabled: z.boolean().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await createOrUpdateTqConfig({
+          userId: ctx.user.id,
+          ...input,
+        });
+        return { success: true };
+      }),
+    startService: protectedProcedure.mutation(async ({ ctx }) => {
+      const config = await getTqConfig(ctx.user.id);
+      return await tqService.start(
+        config?.tqUsername || "",
+        config?.tqPassword || "",
+        (config?.subscribedContracts as string[]) || []
+      );
+    }),
+    stopService: protectedProcedure.mutation(async () => {
+      tqService.stop();
+      return { success: true };
+    }),
+    getStatus: publicProcedure.query(() => tqService.getStatus()),
+    getContracts: publicProcedure.query(() => {
+      return Object.entries(BOND_FUTURES_CONTRACTS).map(([code, info]) => ({
+        code,
+        ...info,
+      }));
+    }),
+    getKlines: publicProcedure
+      .input(z.object({
+        contract: z.string(),
+        period: z.number().default(60),
+        limit: z.number().default(200),
+      }))
+      .query(async ({ input }) => {
+        const cached = await getKlineCache(input.contract, input.period, input.limit);
+        if (cached.length > 0) {
+          return cached.map(k => ({
+            datetime: Number(k.datetime),
+            open: k.open || 0,
+            high: k.high || 0,
+            low: k.low || 0,
+            close: k.close || 0,
+            volume: k.volume || 0,
+            openInterest: k.openInterest || 0,
+          })).sort((a, b) => a.datetime - b.datetime);
+        }
+        return tqService.generateMockKlines(input.contract, input.period, input.limit);
+      }),
+  }),
+
+  // ── Indicator Router ───────────────────────────────────────────────────────
+  indicator: router({
+    list: protectedProcedure.query(async ({ ctx }) => {
+      return getIndicators(ctx.user.id);
+    }),
+    create: protectedProcedure
+      .input(z.object({
+        name: z.string().min(1),
+        description: z.string().optional(),
+        tdxCode: z.string().min(1),
+        appliedContracts: z.array(z.string()).optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const parseResult = parseTdxIndicator(input.tdxCode, input.name);
+        return await createIndicator({
+          userId: ctx.user.id,
+          name: input.name,
+          description: input.description,
+          tdxCode: input.tdxCode,
+          pythonCode: parseResult.success ? parseResult.pythonCode : null,
+          convertStatus: parseResult.success ? "success" : "error",
+          convertError: parseResult.error,
+          appliedContracts: input.appliedContracts,
+          isActive: true,
+        });
+      }),
+    update: protectedProcedure
+      .input(z.object({
+        id: z.number(),
+        name: z.string().optional(),
+        description: z.string().optional(),
+        tdxCode: z.string().optional(),
+        appliedContracts: z.array(z.string()).optional(),
+        isActive: z.boolean().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const updates: any = { ...input };
+        delete updates.id;
+        if (input.tdxCode) {
+          const parseResult = parseTdxIndicator(input.tdxCode, input.name || "INDICATOR");
+          updates.pythonCode = parseResult.success ? parseResult.pythonCode : null;
+          updates.convertStatus = parseResult.success ? "success" : "error";
+          updates.convertError = parseResult.error;
+        }
+        return await updateIndicator(input.id, updates);
+      }),
+  }),
+
+  // ── Signal Router ──────────────────────────────────────────────────────────
+  signal: router({
+    list: protectedProcedure
+      .input(z.object({ limit: z.number().default(50) }))
+      .query(async ({ ctx, input }) => {
+        return getSignalRecords(ctx.user.id, input.limit);
+      }),
+  }),
+
+  // ── Email Router ───────────────────────────────────────────────────────────
+  email: router({
+    getConfig: protectedProcedure.query(async ({ ctx }) => {
+      const config = await getEmailConfig(ctx.user.id);
+      if (!config) return null;
+      return {
+        ...config,
+        smtpPassword: config.smtpPassword ? "••••••••" : null,
+      };
+    }),
+    saveConfig: protectedProcedure
+      .input(z.object({
+        smtpHost: z.string().optional(),
+        smtpPort: z.number().optional(),
+        smtpSecure: z.boolean().optional(),
+        smtpUser: z.string().optional(),
+        smtpPassword: z.string().optional(),
+        fromEmail: z.string().optional(),
+        toEmails: z.array(z.string()).optional(),
+        isEnabled: z.boolean().optional(),
+        cooldownMinutes: z.number().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        await createOrUpdateEmailConfig({
+          userId: ctx.user.id,
+          ...input,
+        });
+        return { success: true };
+      }),
+    testConnection: protectedProcedure
+      .input(z.object({
+        smtpHost: z.string(),
+        smtpPort: z.number().optional(),
+        smtpSecure: z.boolean().optional(),
+        smtpUser: z.string(),
+        smtpPassword: z.string(),
+      }))
+      .mutation(async ({ input }) => {
+        return testEmailConnection(input);
+      }),
   }),
 });
 

@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ArrowRight, TrendingUp, BarChart3, Users, Zap, Mail } from "lucide-react";
+import { ArrowRight, TrendingUp, BarChart3, Users, Zap, Mail, Activity } from "lucide-react";
 import { getLoginUrl } from "@/const";
 import { Link } from "wouter";
 
@@ -118,6 +118,42 @@ export default function Home() {
                 </p>
                 <div className="flex items-center text-green-500 text-sm font-medium">
                   查看交易 <ArrowRight className="w-4 h-4 ml-2" />
+                </div>
+              </Card>
+            </Link>
+
+            {/* 实时行情卡片 */}
+            <Link href="/market">
+              <Card className="card-elegant cursor-pointer group">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-2.5 bg-red-500/10 rounded-lg group-hover:bg-red-500/20 transition-colors">
+                    <Activity className="w-6 h-6 text-red-500" />
+                  </div>
+                </div>
+                <h3 className="font-semibold mb-1">实时行情</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  查看国债期货实时 K 线与指标
+                </p>
+                <div className="flex items-center text-red-500 text-sm font-medium">
+                  进入行情 <ArrowRight className="w-4 h-4 ml-2" />
+                </div>
+              </Card>
+            </Link>
+
+            {/* 指标管理卡片 */}
+            <Link href="/indicators">
+              <Card className="card-elegant cursor-pointer group">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-2.5 bg-cyan-500/10 rounded-lg group-hover:bg-cyan-500/20 transition-colors">
+                    <Zap className="w-6 h-6 text-cyan-500" />
+                  </div>
+                </div>
+                <h3 className="font-semibold mb-1">指标管理</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  配置通达信指标与信号告警
+                </p>
+                <div className="flex items-center text-cyan-500 text-sm font-medium">
+                  管理指标 <ArrowRight className="w-4 h-4 ml-2" />
                 </div>
               </Card>
             </Link>
