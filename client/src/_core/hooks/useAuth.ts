@@ -32,14 +32,19 @@ export function useAuth(options?: UseAuthOptions) {
         error instanceof TRPCClientError &&
         error.data?.code === "UNAUTHORIZED"
       ) {
-        return;
+        // Already logged out on server side
+      } else {
+        throw error;
       }
-      throw error;
     } finally {
       utils.auth.me.setData(undefined, null);
       await utils.auth.me.invalidate();
+      // Redirect to login page
+      if (typeof window !== 'undefined') {
+        window.location.href = redirectPath;
+      }
     }
-  }, [logoutMutation, utils]);
+  }, [logoutMutation, utils, redirectPath]);
 
   const state = useMemo(() => {
     localStorage.setItem(
