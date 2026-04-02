@@ -27,7 +27,7 @@ TQ_CONTRACTS = os.getenv('TQ_CONTRACTS', 'KQ.m@CFFEX.T,KQ.m@CFFEX.TF,KQ.m@CFFEX.
 
 # 尝试导入天勤SDK
 try:
-    from tqsdk import TqApi, TqAccount
+    from tqsdk import TqApi, TqAuth
     HAS_TQSDK = True
 except ImportError:
     HAS_TQSDK = False
@@ -96,10 +96,8 @@ class TQDataProvider:
     def connect(self) -> bool:
         """连接天勤"""
         try:
-            # TQAccount 需要 broker_id, account_id, password
-            # 对于手机号登录的用户，使用手机号作为 account_id
-            self.account = TqAccount("", self.username, self.password)
-            self.api = TqApi(self.account, web_gui=False)
+            # 使用 TqAuth 连接到天勤
+            self.api = TqApi(auth=TqAuth(self.username, self.password), web_gui=False)
             logger.info(f"Connected to TQ with account: {self.username}")
             
             # 订阅合约
@@ -123,15 +121,20 @@ class TQDataProvider:
             for contract in self.contracts:
                 if contract in self.quotes:
                     quote = self.quotes[contract]
+                    # TQSdk Quote 对象的属性名是 bid_price1, ask_price1 等
+                    bid_price = quote.bid_price1 if hasattr(quote, 'bid_price1') else quote.last_price
+                    ask_price = quote.ask_price1 if hasattr(quote, 'ask_price1') else quote.last_price
+                    open_price = quote.open if hasattr(quote, 'open') else quote.last_price
+                    
                     quotes.append({
                         'contract': contract,
-                        'lastPrice': quote.last_price,
-                        'bidPrice': quote.bid_price,
-                        'askPrice': quote.ask_price,
-                        'volume': quote.volume,
-                        'openInterest': quote.open_interest,
-                        'datetime': datetime.now().isoformat(),
-                        'change': quote.last_price - quote.open_price if hasattr(quote, 'open_price') else 0,
+                        'lastPrice': float(quote.last_price) if quote.last_price else 0,
+                        'bidPrice': float(bid_price) if bid_price else 0,
+                        'askPrice': float(ask_price) if ask_price else 0,
+                        'volume': int(quote.volume) if quote.volume else 0,
+                        'openInterest': int(quote.open_interest) if quote.open_interest else 0,
+                        'datetime': str(quote.datetime) if quote.datetime else datetime.now().isoformat(),
+                        'change': float(quote.last_price - open_price) if (quote.last_price and open_price) else 0,
                         'changePercent': 0,  # 需要计算
                     })
         except Exception as e:
