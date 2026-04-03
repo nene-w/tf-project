@@ -101,7 +101,7 @@ function ContractAnalysisCard({ contract }: { contract: typeof CONTRACTS[0] }) {
     generateMutation.mutate({ contract: contract.code });
   };
 
-  const trendInfo = report ? TREND_LABELS[report.trendConclusion] : null;
+  const trendInfo = report ? TREND_LABELS[report.trendConclusion as keyof typeof TREND_LABELS] : null;
   const TrendIcon = trendInfo?.icon || Minus;
   const flameScores = (report?.flameScores as Record<string, number>) || {};
 
@@ -419,7 +419,7 @@ function HistoryReports() {
       {reports && reports.length > 0 ? (
         <div className="space-y-3">
           {reports.map(report => {
-            const trendInfo = TREND_LABELS[report.trendConclusion];
+            const trendInfo = TREND_LABELS[report.trendConclusion as keyof typeof TREND_LABELS];
             const TrendIcon = trendInfo.icon;
             const contractInfo = CONTRACTS.find(c => c.code === report.contract);
             return (

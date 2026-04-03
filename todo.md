@@ -331,3 +331,23 @@
 - [x] 更新后端 API limit 上限至 8000 根
 - [x] 前端 MarketAnalysis 页面根据周期动态调整 limit（日线 180、60分 855、15分 500）
 - [x] 测试数据完整性：T/TF/TS/TL 四个合约均成功写入，时间范围 2025-07-06 ~ 2026-04-02
+
+## 盘中实时 K 线更新（新增）
+
+- [ ] 阅读天勤实时行情文档（get_kline_serial 实时订阅）
+- [ ] 更新 Python worker 脚本：订阅实时 K 线并推送更新
+- [ ] 更新后端 tqService：处理 kline_update 消息并广播给前端
+- [ ] 更新前端 K 线图：通过 WebSocket 接收实时 K 线更新
+- [ ] 测试盘中实时 K 线显示
+- [ ] 保存检查点
+
+## 盘中实时 K 线更新 - 完成（新增）
+
+- [x] 阅读天勤文档：get_kline_serial + wait_update + is_changing 实时订阅方案
+- [x] 重写 Python worker：订阅 1分/15分/1小时/日线四个周期，is_changing 检测更新
+- [x] 后端 server/_core/index.ts：初始化 Socket.IO，桥接 tqService 事件到 WebSocket 广播
+- [x] 重写 LightweightKlineChart：日期轴 + OHLC 悬停提示 + updateBar 实时更新 API
+- [x] 重写 MarketAnalysis 页面：Socket.IO 监听 klines/kline 事件，实时更新最后一根 K 线
+- [x] 修复 AiAnalyst.tsx TypeScript 类型错误
+- [x] 26 个单元测试全部通过，TypeScript 0 错误
+- [x] 保存检查点
