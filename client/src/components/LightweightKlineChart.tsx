@@ -73,6 +73,21 @@ export function LightweightKlineChart({
     return Math.floor(ns / 1_000_000_000);              // 纳秒
   }
 
+  // 纳秒时间戳 → lightweight-charts Time
+  // 日线图要求 'YYYY-MM-DD' 字符串；分钟线使用 Unix 秒数字
+  function nsToTime(ns: number): Time {
+    const sec = nsToSec(ns);
+    if (!isIntraday) {
+      // 日线：转为 UTC 日期字符串 'YYYY-MM-DD'
+      const d = new Date(sec * 1000);
+      const pad = (n: number) => String(n).padStart(2, "0");
+      // 使用 UTC+8（中国时区）的日期
+      const cst = new Date(sec * 1000 + 8 * 3600 * 1000);
+      return `${cst.getUTCFullYear()}-${pad(cst.getUTCMonth() + 1)}-${pad(cst.getUTCDate())}` as unknown as Time;
+    }
+    return sec as Time;
+  }
+
   function formatTime(unixSec: number): string {
     const d = new Date(unixSec * 1000);
     const pad = (n: number) => String(n).padStart(2, "0");
@@ -238,7 +253,7 @@ export function LightweightKlineChart({
     volumeSeries: ISeriesApi<"Histogram"> | null
   ) {
     const candleData: CandlestickData<Time>[] = bars.map((bar) => ({
-      time: nsToSec(bar.datetime) as Time,
+      time: nsToTime(bar.datetime),
       open: bar.open,
       high: bar.high,
       low: bar.low,
@@ -248,7 +263,7 @@ export function LightweightKlineChart({
 
     if (volumeSeries) {
       const volData: HistogramData<Time>[] = bars.map((bar) => ({
-        time: nsToSec(bar.datetime) as Time,
+        time: nsToTime(bar.datetime),
         value: bar.volume,
         color: bar.close >= bar.open ? "#22c55e55" : "#ef444455",
       }));
@@ -262,7 +277,7 @@ export function LightweightKlineChart({
    */
   const updateBar = useCallback((bar: KlineBar) => {
     if (!candleSeriesRef.current) return;
-    const t = nsToSec(bar.datetime) as Time;
+    const t = nsToTime(bar.datetime);
     const cd: CandlestickData<Time> = {
       time: t,
       open: bar.open,
@@ -280,7 +295,7 @@ export function LightweightKlineChart({
       };
       volumeSeriesRef.current.update(vd);
     }
-  }, []);
+  }, [isIntraday]);
 
   // 暴露 updateBar 给父组件
   useEffect(() => {
@@ -346,8 +361,8 @@ export function LightweightKlineChart({
             className="flex items-center justify-center text-muted-foreground"
           >
             <div className="text-center">
-              <p className="text-lg font-medium">暂无数据</p>
-              <p className="text-sm mt-1">请先在市场设置中启动数据服务</p>
+              <p className="text-lg font-medium">正在加载数据...</p>
+              <p className="text-sm mt-1">如需实时行情，请在左侧导航栈“市场设置”中启动天勤数据服务</p>
             </div>
           </div>
         )}

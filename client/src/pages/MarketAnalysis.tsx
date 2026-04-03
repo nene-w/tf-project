@@ -17,10 +17,7 @@ const CONTRACTS = [
 ];
 
 const PERIODS = [
-  { value: "60",    label: "1分钟" },
-  { value: "300",   label: "5分钟" },
   { value: "900",   label: "15分钟" },
-  { value: "1800",  label: "30分钟" },
   { value: "3600",  label: "1小时" },
   { value: "86400", label: "日线" },
 ];
@@ -52,7 +49,7 @@ interface KlineBar {
 export default function KlineChartLwc() {
   const [, setLocation] = useLocation();
   const [selectedContract, setSelectedContract] = useState<string>("KQ.m@CFFEX.T");
-  const [selectedPeriod, setSelectedPeriod] = useState<string>("60");
+  const [selectedPeriod, setSelectedPeriod] = useState<string>("86400");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
   const [currentQuote, setCurrentQuote] = useState<QuoteData | null>(null);
@@ -71,11 +68,9 @@ export default function KlineChartLwc() {
   // 根据周期动态调整 limit
   const klineLimit = useMemo(() => {
     const p = parseInt(selectedPeriod);
-    if (p === 86400) return 180;
-    if (p === 3600)  return 500;
-    if (p === 900)   return 500;
-    if (p === 300)   return 500;
-    return 300;   // 1分钟
+    if (p === 86400) return 250;  // 日线：最多 250 个交易日（约 1 年）
+    if (p === 3600)  return 1000; // 1小时：最多 1000 根
+    return 2000;                  // 15分钟：最多 2000 根
   }, [selectedPeriod]);
 
   // 从数据库加载历史 K 线

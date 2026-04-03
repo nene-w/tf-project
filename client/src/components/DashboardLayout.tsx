@@ -36,7 +36,7 @@ const menuItems = [
   { icon: Activity, label: "实时行情", path: "/market" },
   { icon: Zap, label: "指标管理", path: "/indicators" },
   { icon: Bell, label: "信号告警", path: "/market-signals" },
-  { icon: Settings, label: "行情设置", path: "/market-settings" },
+  { icon: Settings, label: "市场设置", path: "/market-settings" },
   { icon: Brain, label: "AI 分析师", path: "/ai-analyst" },
 ];
 
