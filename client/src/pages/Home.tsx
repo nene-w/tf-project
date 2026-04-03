@@ -176,6 +176,24 @@ export default function Home() {
                 </div>
               </Card>
             </Link>
+
+            {/* 市场设置卡片 */}
+            <Link href="/market-settings">
+              <Card className="card-elegant cursor-pointer group">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="p-2.5 bg-slate-500/10 rounded-lg group-hover:bg-slate-500/20 transition-colors">
+                    <Settings className="w-6 h-6 text-slate-500" />
+                  </div>
+                </div>
+                <h3 className="font-semibold mb-1">市场设置</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  配置天勤账户并启动实时行情数据服务
+                </p>
+                <div className="flex items-center text-slate-500 text-sm font-medium">
+                  配置设置 <ArrowRight className="w-4 h-4 ml-2" />
+                </div>
+              </Card>
+            </Link>
           </div>
 
           {/* 快速统计 */}

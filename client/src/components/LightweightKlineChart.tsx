@@ -12,6 +12,7 @@ import {
   CrosshairMode,
 } from "lightweight-charts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Link } from "wouter";
 
 export interface KlineBar {
   datetime: number;  // 纳秒时间戳（来自 TQSdk）
@@ -360,9 +361,14 @@ export function LightweightKlineChart({
             style={{ height: `${height}px` }}
             className="flex items-center justify-center text-muted-foreground"
           >
-            <div className="text-center">
-              <p className="text-lg font-medium">正在加载数据...</p>
-              <p className="text-sm mt-1">如需实时行情，请在左侧导航栈“市场设置”中启动天勤数据服务</p>
+            <div className="text-center space-y-3">
+              <p className="text-lg font-medium">暂无 K 线数据</p>
+              <p className="text-sm">如需实时行情，请先在「市场设置」中配置天勤账户并启动数据服务</p>
+              <Link href="/market-settings">
+                <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors cursor-pointer">
+                  前往市场设置
+                </span>
+              </Link>
             </div>
           </div>
         )}
