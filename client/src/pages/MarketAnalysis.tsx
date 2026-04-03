@@ -344,6 +344,7 @@ export default function KlineChartLwc() {
         height={500}
         theme="dark"
         showVolume={true}
+        period={parseInt(selectedPeriod)}
       />
 
       {/* 技术指标 */}
