@@ -44,7 +44,7 @@ import {
 import { invokeLLM } from "./_core/llm";
 import { tqService, BOND_FUTURES_CONTRACTS } from "./services/tqService";
 import { parseTdxIndicator } from "./services/tdxParser";
-import { sendSignalEmail, testEmailConnection } from "./services/emailAlert";
+import { testEmailConnection, sendSignalEmail } from "./services/emailAlert";
 import { fetchEmailSignals, startEmailPolling } from "./emailService";
 import { fetchAndAnalyzeUrl } from "./urlScraper";
 import { generateAnalystReport, generateAnalystReportWithBuiltIn, CONTRACT_INFO, ContractCode } from "./services/aiAnalyst";
@@ -996,14 +996,17 @@ ${input.content}`,
         });
         return { success: true };
       }),
-    startService: protectedProcedure.mutation(async ({ ctx }) => {
-      const config = await getTqConfig(ctx.user.id);
-      return await tqService.start(
-        config?.tqUsername || "",
-        config?.tqPassword || "",
-        (config?.subscribedContracts as string[]) || []
-      );
-    }),
+    startService: protectedProcedure
+      .input(z.object({ contracts: z.array(z.string()).optional() }).optional())
+      .mutation(async ({ ctx, input }) => {
+        const config = await getTqConfig(ctx.user.id);
+        const contracts = input?.contracts || (config?.subscribedContracts as string[]) || [];
+        return await tqService.start(
+          config?.tqUsername || "",
+          config?.tqPassword || "",
+          contracts
+        );
+      }),
     stopService: protectedProcedure.mutation(async () => {
       tqService.stop();
       return { success: true };
@@ -1023,7 +1026,7 @@ ${input.content}`,
       .input(z.object({
         contract: z.string(),
         period: z.number().default(60),
-        limit: z.number().max(8000).default(500),  // 支持最多 8000 根
+        limit: z.number().default(200),
       }))
       .query(async ({ input }) => {
         const cached = await getKlineCache(input.contract, input.period, input.limit);
@@ -1174,16 +1177,17 @@ ${input.content}`,
       }))
       .mutation(async ({ input }) => {
         return testEmailConnection(input);
-       }),
+      }),
     sendTest: protectedProcedure
-      .mutation(async ({ ctx }) => {
+      .input(z.object({ contract: z.string().optional() }).optional())
+      .mutation(async ({ ctx, input }) => {
         try {
           const config = await getEmailConfig(ctx.user.id);
-          if (!config || !config.fromEmail || !config.toEmails || config.toEmails.length === 0) {
+          if (!config || !config.fromEmail || !config.toEmails || (config.toEmails as string[]).length === 0) {
             return { success: false, error: "邮件配置不完整" };
           }
           await sendSignalEmail(config, {
-            contract: "T-Bond",
+            contract: input?.contract || "KQ.m@CFFEX.T",
             signalType: "buy",
             price: 100.5,
             description: "测试信号",
@@ -1343,6 +1347,27 @@ ${input.content}`,
         });
         
         return result;
+      }),
+    sendTest: protectedProcedure
+      .input(z.object({ contract: z.string().optional() }).optional())
+      .mutation(async ({ ctx, input }) => {
+        try {
+          const config = await getEmailConfig(ctx.user.id);
+          if (!config || !config.fromEmail || !config.toEmails || config.toEmails.length === 0) {
+            return { success: false, error: "邮件配置不完整" };
+          }
+          await sendSignalEmail(config, {
+            contract: input?.contract || "T-Bond",
+            signalType: "buy",
+            price: 100.5,
+            description: "测试信号",
+            indicatorName: "测试",
+            triggeredAt: new Date(),
+          });
+          return { success: true };
+        } catch (error) {
+          return { success: false, error: error instanceof Error ? error.message : "发送失败" };
+        }
       }),
   }),
 });

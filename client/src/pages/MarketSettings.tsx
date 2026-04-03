@@ -105,7 +105,7 @@ export default function Settings() {
     },
   });
   const sendTestMutation = trpc.email.sendTest.useMutation({
-    onSuccess: (r: any) => {
+    onSuccess: (r) => {
       if (r.success) toast.success("测试邮件发送成功，请检查收件箱");
       else toast.error("发送失败: " + r.error);
     },
@@ -183,7 +183,7 @@ export default function Settings() {
                 <Button
                   size="sm"
                   className="gap-2"
-                  onClick={() => startServiceMutation.mutateAsync()}
+                  onClick={() => startServiceMutation.mutate({ contracts: tqForm.subscribedContracts })}
                   disabled={startServiceMutation.isPending}
                 >
                   <Play className="h-3.5 w-3.5" />
@@ -449,7 +449,7 @@ export default function Settings() {
                 <Button
                   variant="outline"
                   className="gap-2 bg-card border-border"
-                  onClick={() => sendTestMutation.mutate()}
+                  onClick={() => sendTestMutation.mutate({ contract: "KQ.m@CFFEX.T" })}
                   disabled={sendTestMutation.isPending}
                 >
                   <Send className="h-3.5 w-3.5" />

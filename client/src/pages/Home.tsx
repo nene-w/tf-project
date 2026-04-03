@@ -1,7 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ArrowRight, TrendingUp, BarChart3, Users, Zap, Mail, Activity, Brain, AlertCircle, Settings, LineChart, Sliders } from "lucide-react";
+import { ArrowRight, TrendingUp, BarChart3, Users, Zap, Mail, Activity, Brain, AlertCircle, Settings, LineChart, SlidersHorizontal } from "lucide-react";
 import { getLoginUrl } from "@/const";
 import { Link } from "wouter";
 
@@ -145,7 +145,7 @@ export default function Home() {
               <Card className="card-elegant cursor-pointer group">
                 <div className="flex items-start justify-between mb-4">
                   <div className="p-2.5 bg-indigo-500/10 rounded-lg group-hover:bg-indigo-500/20 transition-colors">
-                    <Sliders className="w-6 h-6 text-indigo-500" />
+                    <SlidersHorizontal className="w-6 h-6 text-indigo-500" />
                   </div>
                 </div>
                 <h3 className="font-semibold mb-1">自定义指标</h3>
