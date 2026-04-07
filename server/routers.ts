@@ -1008,6 +1008,46 @@ ${input.content}`,
       tqService.stop();
       return { success: true };
     }),
+    syncHistory: protectedProcedure
+      .input(z.object({
+        username: z.string().optional(),
+        password: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        // 获取天勤账号（优先用输入的，其次用数据库中保存的）
+        const config = await getTqConfig(ctx.user.id);
+        const tqUsername = input.username || config?.tqUsername || '';
+        const tqPassword = input.password || config?.tqPassword || '';
+        if (!tqUsername || !tqPassword) {
+          return { success: false, error: '请先配置天勤账号密码' };
+        }
+        const { spawn } = await import('child_process');
+        const path = await import('path');
+        const scriptPath = path.join(process.cwd(), 'scripts', 'download_history.py');
+        return new Promise((resolve) => {
+          const proc = spawn('python3', [scriptPath], {
+            env: {
+              ...process.env,
+              TQ_USERNAME: tqUsername,
+              TQ_PASSWORD: tqPassword,
+              PYTHONUNBUFFERED: '1',
+            },
+            timeout: 300000,  // 5分钟超时
+          });
+          let stderr = '';
+          proc.stderr?.on('data', (d: Buffer) => { stderr += d.toString(); });
+          proc.on('close', (code: number) => {
+            if (code === 0) {
+              resolve({ success: true, message: '历史数据同步完成' });
+            } else {
+              resolve({ success: false, error: stderr.slice(-500) || '下载失败' });
+            }
+          });
+          proc.on('error', (err: Error) => {
+            resolve({ success: false, error: err.message });
+          });
+        });
+      }),
     getStatus: publicProcedure.query(() => tqService.getStatus()),
     getServiceStatus: publicProcedure.query(() => tqService.getStatus()),
     getQuotes: publicProcedure.query(() => {
@@ -1028,7 +1068,7 @@ ${input.content}`,
       .query(async ({ input }) => {
         const cached = await getKlineCache(input.contract, input.period, input.limit);
         if (cached.length > 0) {
-          return cached.map(k => ({
+          const bars = cached.map(k => ({
             datetime: Number(k.datetime),
             open: k.open || 0,
             high: k.high || 0,
@@ -1037,6 +1077,27 @@ ${input.content}`,
             volume: k.volume || 0,
             openInterest: k.openInterest || 0,
           })).sort((a, b) => a.datetime - b.datetime);
+
+          // 叠加内存中的实时最新 K 线（盘中实时数据）
+          const liveBar = tqService.getLatestKlineBar(input.contract, input.period);
+          if (liveBar) {
+            const normalizedLive = {
+              datetime: liveBar.datetime,
+              open: liveBar.open,
+              high: liveBar.high,
+              low: liveBar.low,
+              close: liveBar.close,
+              volume: liveBar.volume,
+              openInterest: liveBar.openInterest ?? 0,
+            };
+            const last = bars[bars.length - 1];
+            if (last && last.datetime === normalizedLive.datetime) {
+              bars[bars.length - 1] = normalizedLive;  // 更新当日未收盘的最后一根
+            } else if (!last || normalizedLive.datetime > last.datetime) {
+              bars.push(normalizedLive);  // 追加新的交易日 K 线
+            }
+          }
+          return bars;
         }
         return tqService.generateMockKlines(input.contract, input.period, input.limit);
       }),

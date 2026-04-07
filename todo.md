@@ -369,3 +369,14 @@
 - [x] MarketSettings 页面功能完整：天勤账户配置、启动/停止数据服务、订阅合约管理
 - [x] TypeScript 0 错误，26 个单元测试全部通过
 - [x] 保存检查点
+
+## K 线实时行情不更新修复（新增）
+
+- [x] 根本原因：数据库截止 2026-04-02，天勤未启动导致今日数据缺失
+- [x] 修复 tqService.ts 缓存键改为 contract:period 复合键
+- [x] tqService 收到 K 线数据时异步写入数据库，实现持久化
+- [x] getKlines 路由叠加内存实时最新 K 线到数据库历史数据末尾
+- [x] 添加 syncHistory API，触发增量下载脚本补充历史数据
+- [x] MarketSettings 页面添加「同步历史数据」按鈕
+- [x] 27 个单元测试全部通过，TypeScript 0 错误
+- [x] 保存检查点

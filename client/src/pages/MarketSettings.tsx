@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Settings2, Mail, Database, Play, Square, CheckCircle, XCircle, Send } from "lucide-react";
+import { Settings2, Mail, Database, Play, Square, CheckCircle, XCircle, Send, RefreshCw } from "lucide-react";
 
 const CONTRACTS = [
   { value: "KQ.m@CFFEX.T", label: "T主连", desc: "10年期国债期货" },
@@ -92,6 +92,13 @@ export default function Settings() {
   });
   const stopServiceMutation = trpc.tq.stopService.useMutation({
     onSuccess: () => { toast.success("数据服务已停止"); refetchStatus(); },
+  });
+  const syncHistoryMutation = trpc.tq.syncHistory.useMutation({
+    onSuccess: (r: any) => {
+      if (r.success) toast.success("历史数据同步完成！已更新最近 180 天 K 线");
+      else toast.error("同步失败: " + (r.error || "未知错误"));
+    },
+    onError: (e) => toast.error("同步失败: " + e.message),
   });
   const saveEmailMutation = trpc.email.saveConfig.useMutation({
     onSuccess: () => toast.success("邮件配置已保存"),
@@ -179,7 +186,7 @@ export default function Settings() {
                   ? "已连接天勤量化，正在接收实时行情数据"
                   : "当前使用模拟数据。配置天勤账户后启动服务即可接收真实行情。"}
               </p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   size="sm"
                   className="gap-2"
@@ -199,7 +206,23 @@ export default function Settings() {
                   <Square className="h-3.5 w-3.5" />
                   停止服务
                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 bg-card border-border text-blue-400 border-blue-500/40 hover:bg-blue-500/10"
+                  onClick={() => (syncHistoryMutation as any).mutate({ username: tqForm.tqUsername, password: tqForm.tqPassword })}
+                  disabled={(syncHistoryMutation as any).isPending}
+                  title="从天勤下载最近 180 天历史 K 线数据，补充数据库缺失的交易日数据"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${ (syncHistoryMutation as any).isPending ? 'animate-spin' : ''}`} />
+                  {
+                    (syncHistoryMutation as any).isPending ? '同步中...' : '同步历史数据'
+                  }
+                </Button>
               </div>
+              {(syncHistoryMutation as any).isPending && (
+                <p className="text-xs text-blue-400 animate-pulse">正在从天勤下载最近 180 天 K 线数据，预计需要 1-3 分钟...</p>
+              )}
             </CardContent>
           </Card>
 

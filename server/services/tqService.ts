@@ -5,12 +5,14 @@
  * 1. 当用户配置了天勤账户时，启动Python子进程运行TQSdk，通过stdin/stdout通信
  * 2. 未配置时，使用模拟数据供界面展示和测试
  * 3. 通过EventEmitter向上层推送实时行情和信号
+ * 4. 收到 K 线数据时异步写入数据库，确保数据持久化
  */
 
 import { EventEmitter } from "events";
 import { spawn, ChildProcess } from "child_process";
 import path from "path";
 import fs from "fs";
+import { upsertKlineCache } from "../db";
 
 // 国债期货主连合约代码
 export const BOND_FUTURES_CONTRACTS = {
@@ -21,7 +23,7 @@ export const BOND_FUTURES_CONTRACTS = {
 };
 
 export interface KlineBar {
-  datetime: number;  // Unix timestamp (ms)
+  datetime: number;  // 纳秒时间戳（来自 TQSdk）
   open: number;
   high: number;
   low: number;
@@ -50,21 +52,19 @@ class TQService extends EventEmitter {
   private tqUsername = "";
   private tqPassword = "";
   private subscribedContracts: string[] = [];
-  private klineCache: Record<string, KlineBar[]> = {};  // 缓存K线数据
-  private latestQuotes: Record<string, QuoteData> = {};  // 缓存最新行情
+  // 缓存键：`${contract}:${period}`，区分不同周期
+  private klineCache: Record<string, KlineBar[]> = {};
+  private latestQuotes: Record<string, QuoteData> = {};
 
   constructor() {
     super();
-    // 初始化模拟价格
     for (const [contract, info] of Object.entries(BOND_FUTURES_CONTRACTS)) {
       this.mockPrices[contract] = info.basePrice;
     }
   }
 
   async start(username: string, password: string, contracts: string[]): Promise<{ success: boolean; error?: string }> {
-    // 先停止现有服务
     this.stop();
-    
     this.tqUsername = username;
     this.tqPassword = password;
     this.subscribedContracts = contracts.length > 0 ? contracts : Object.keys(BOND_FUTURES_CONTRACTS);
@@ -97,22 +97,21 @@ class TQService extends EventEmitter {
     };
   }
 
-  // 获取缓存的K线数据（真实或模拟）
-  getKlines(contract: string, periodSec: number = 60, limit: number = 200): KlineBar[] {
-    const cached = this.klineCache[contract];
-    if (cached && cached.length > 0) {
-      return cached.slice(-limit);
-    }
-    // 如果没有缓存，返回模拟数据
-    return this.generateMockKlines(contract, periodSec, limit);
+  /**
+   * 获取内存中缓存的最新一根 K 线（用于叠加到数据库历史数据末尾）
+   * 返回 null 表示没有实时数据
+   */
+  getLatestKlineBar(contract: string, period: number): KlineBar | null {
+    const key = `${contract}:${period}`;
+    const cache = this.klineCache[key];
+    if (!cache || cache.length === 0) return null;
+    return cache[cache.length - 1];
   }
 
   // 获取最新行情
   getLatestQuotes(): QuoteData[] {
     const cached = Object.values(this.latestQuotes);
-    if (cached.length > 0) {
-      return cached;
-    }
+    if (cached.length > 0) return cached;
     return this.getMockQuotes();
   }
 
@@ -125,7 +124,7 @@ class TQService extends EventEmitter {
     let price = basePrice;
 
     for (let i = count - 1; i >= 0; i--) {
-      const ts = now - i * period * 1000;
+      const ts = (now - i * period * 1000) * 1_000_000;  // 转为纳秒
       const change = (Math.random() - 0.495) * 0.08;
       const open = price;
       price = Math.max(basePrice * 0.95, Math.min(basePrice * 1.05, price + change));
@@ -167,7 +166,6 @@ class TQService extends EventEmitter {
 
   private startMockMode() {
     this.isRunning = true;
-    // 每2秒更新一次模拟价格
     this.mockDataInterval = setInterval(() => {
       for (const [contract, info] of Object.entries(BOND_FUTURES_CONTRACTS)) {
         const current = this.mockPrices[contract] || info.basePrice;
@@ -178,7 +176,6 @@ class TQService extends EventEmitter {
         );
       }
       const quotes = this.getMockQuotes();
-      // 更新缓存
       for (const q of quotes) {
         this.latestQuotes[q.contract] = q;
       }
@@ -186,12 +183,34 @@ class TQService extends EventEmitter {
     }, 2000);
   }
 
+  /**
+   * 将 K 线数据异步写入数据库（不阻塞主流程）
+   */
+  private async persistKlinesToDb(contract: string, period: number, bars: KlineBar[]) {
+    try {
+      const rows = bars.map((bar) => ({
+        contract,
+        period,
+        datetime: bar.datetime,  // schema: bigint mode:"number" → JS number
+        open: bar.open,
+        high: bar.high,
+        low: bar.low,
+        close: bar.close,
+        volume: bar.volume,
+        openInterest: bar.openInterest ?? 0,
+      }));
+      await upsertKlineCache(rows);
+      console.log(`[TQService] Persisted ${rows.length} klines for ${contract} period=${period}s`);
+    } catch (err) {
+      console.error(`[TQService] Failed to persist klines for ${contract} period=${period}s:`, err);
+    }
+  }
+
   private processMessage(line: string) {
     try {
       const msg = JSON.parse(line);
-      
+
       if (msg.type === "quotes" || msg.type === "quote") {
-        // 更新行情缓存
         const quotesArray: QuoteData[] = Array.isArray(msg.data) ? msg.data : [msg.data];
         for (const q of quotesArray) {
           if (q && q.contract) {
@@ -199,38 +218,44 @@ class TQService extends EventEmitter {
           }
         }
         this.emit("quotes", quotesArray);
-        
+
       } else if (msg.type === "klines") {
         // 初始K线数据（历史数据批量推送）
-        const contract = msg.contract;
+        const contract: string = msg.contract;
+        const period: number = msg.period;
         const bars: KlineBar[] = msg.data || [];
-        if (contract && bars.length > 0) {
-          this.klineCache[contract] = bars;
-          console.log(`[TQService] Cached ${bars.length} klines for ${contract}`);
-          this.emit("klines", { contract, period: msg.period, data: bars });
+        if (contract && period && bars.length > 0) {
+          // 缓存键区分周期
+          const key = `${contract}:${period}`;
+          this.klineCache[key] = bars;
+          console.log(`[TQService] Cached ${bars.length} klines for ${contract} period=${period}s`);
+          // 异步写入数据库（不阻塞）
+          this.persistKlinesToDb(contract, period, bars);
+          this.emit("klines", { contract, period, data: bars });
         }
-        
+
       } else if (msg.type === "kline") {
-        // 单根K线更新
-        const contract = msg.contract;
+        // 单根K线实时更新
+        const contract: string = msg.contract;
+        const period: number = msg.period;
         const bar: KlineBar = msg.data;
-        if (contract && bar) {
-          // 更新缓存中的最后一根K线
-          if (!this.klineCache[contract]) {
-            this.klineCache[contract] = [];
+        if (contract && period && bar) {
+          const key = `${contract}:${period}`;
+          if (!this.klineCache[key]) {
+            this.klineCache[key] = [];
           }
-          const cache = this.klineCache[contract];
+          const cache = this.klineCache[key];
           if (cache.length > 0 && cache[cache.length - 1].datetime === bar.datetime) {
             cache[cache.length - 1] = bar;  // 更新最后一根
           } else {
-            cache.push(bar);  // 添加新K线
-            if (cache.length > 500) {
-              cache.shift();  // 限制缓存大小
-            }
+            cache.push(bar);  // 追加新K线
+            if (cache.length > 1000) cache.shift();
           }
-          this.emit("kline", { contract, period: msg.period, data: bar });
+          // 异步写入数据库（单根 upsert）
+          this.persistKlinesToDb(contract, period, [bar]);
+          this.emit("kline", { contract, period, data: bar, prev: msg.prev });
         }
-        
+
       } else if (msg.type === "error") {
         this.emit("error", msg.error || msg.message);
       }
@@ -243,7 +268,6 @@ class TQService extends EventEmitter {
     const scriptPath = path.join(process.cwd(), "scripts", "tq_worker.py");
 
     if (!fs.existsSync(scriptPath)) {
-      // 如果Python脚本不存在，回退到模拟模式
       this.startMockMode();
       return { success: true };
     }
@@ -256,30 +280,30 @@ class TQService extends EventEmitter {
             TQ_USERNAME: this.tqUsername,
             TQ_PASSWORD: this.tqPassword,
             TQ_CONTRACTS: this.subscribedContracts.join(","),
-            PYTHONUNBUFFERED: "1",  // 禁用Python输出缓冲
+            PYTHONUNBUFFERED: "1",
           },
         });
 
         let started = false;
         let buffer = "";
-        
+
         const timeout = setTimeout(() => {
           if (!started) {
             console.log("[TQService] Timeout waiting for Python worker, falling back to mock mode");
             this.startMockMode();
             resolve({ success: true });
           }
-        }, 30000);  // 30秒超时（等待天勤连接）
+        }, 30000);
 
         this.pythonProcess.stdout?.on("data", (data: Buffer) => {
           buffer += data.toString();
           const lines = buffer.split("\n");
-          buffer = lines.pop() || "";  // 保留不完整的行
-          
+          buffer = lines.pop() || "";
+
           for (const line of lines) {
             const trimmed = line.trim();
             if (!trimmed) continue;
-            
+
             try {
               const msg = JSON.parse(trimmed);
               if (msg.type === "ready" && !started) {
@@ -310,7 +334,7 @@ class TQService extends EventEmitter {
             resolve({ success: true });
           }
         });
-        
+
         this.pythonProcess.on("error", (err) => {
           console.error("[TQService] Python process error:", err);
           if (!started) {
@@ -319,7 +343,7 @@ class TQService extends EventEmitter {
             resolve({ success: true });
           }
         });
-        
+
       } catch (e: any) {
         this.startMockMode();
         resolve({ success: true });
