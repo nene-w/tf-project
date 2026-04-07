@@ -144,13 +144,17 @@ export function LightweightKlineChart({
         fixLeftEdge: true,
         fixRightEdge: false,
         borderColor: isDark ? "#374151" : "#d1d5db",
-        tickMarkFormatter: (time: number) => {
-          const d = new Date(time * 1000);
+        tickMarkFormatter: (time: Time) => {
           const pad = (n: number) => String(n).padStart(2, "0");
-          if (isIntraday) {
-            return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+          if (!isIntraday) {
+            // 日线：time 是 'YYYY-MM-DD' 字符串
+            const s = String(time);
+            const [y, m, d] = s.split('-');
+            return `${y}/${m}/${d}`;
           }
-          return `${d.getFullYear()}/${pad(d.getMonth() + 1)}/${pad(d.getDate())}`;
+          // 分钟线：time 是 Unix 秒数字
+          const d = new Date((time as number) * 1000);
+          return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
         },
       },
       rightPriceScale: {
@@ -350,28 +354,39 @@ export function LightweightKlineChart({
         </div>
       </CardHeader>
       <CardContent className="p-0 pb-4">
-        {data.length > 0 ? (
+        {/* 始终渲染容器，确保 containerRef 有值，图表可以初始化 */}
+        <div style={{ position: "relative", width: "100%", height: `${height}px` }}>
           <div
             ref={containerRef}
-            style={{ width: "100%", height: `${height}px` }}
+            style={{ width: "100%", height: "100%" }}
             className="rounded-lg overflow-hidden"
           />
-        ) : (
-          <div
-            style={{ height: `${height}px` }}
-            className="flex items-center justify-center text-muted-foreground"
-          >
-            <div className="text-center space-y-3">
-              <p className="text-lg font-medium">暂无 K 线数据</p>
-              <p className="text-sm">如需实时行情，请先在「市场设置」中配置天勤账户并启动数据服务</p>
-              <Link href="/market-settings">
-                <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors cursor-pointer">
-                  前往市场设置
-                </span>
-              </Link>
+          {/* 暂无数据覆盖层 */}
+          {data.length === 0 && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: isDark ? "rgba(17,24,39,0.95)" : "rgba(255,255,255,0.95)",
+                borderRadius: "0.5rem",
+              }}
+              className="text-muted-foreground"
+            >
+              <div className="text-center space-y-3">
+                <p className="text-lg font-medium">暂无 K 线数据</p>
+                <p className="text-sm">如需实时行情，请先在「市场设置」中配置天勤账户并启动数据服务</p>
+                <Link href="/market-settings">
+                  <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 transition-colors cursor-pointer">
+                    前往市场设置
+                  </span>
+                </Link>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </CardContent>
     </Card>
   );

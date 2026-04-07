@@ -380,3 +380,11 @@
 - [x] MarketSettings 页面添加「同步历史数据」按鈕
 - [x] 27 个单元测试全部通过，TypeScript 0 错误
 - [x] 保存检查点
+
+## 实时行情数据错误 + 日线 K 线不显示（新增）
+
+- [x] 根本原因：LightweightKlineChart 条件渲染导致 containerRef 为 null，图表无法初始化
+- [x] 修复：始终渲染容器 div，用覆盖层显示暂无数据提示
+- [x] 修复日线时间轴 tickMarkFormatter：正确处理 'YYYY-MM-DD' 字符串格式
+- [x] 日线 K 线图现在正常显示，时间轴正确显示 2025/07 ~ 2026/04
+- [x] TypeScript 0 错误，保存检查点
