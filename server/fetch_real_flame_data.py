@@ -1,11 +1,15 @@
+import os
+os.environ["HTTP_PROXY"] = ""
+os.environ["HTTPS_PROXY"] = ""
 #!/usr/bin/env python3
 """
-使用 AKShare 和 TuShare 获取真实 FLAME 框架数据
-优先使用 AKShare，备选 TuShare
+使用 AKShare 获取真实 FLAME 框架数据
+包含 CPI, PPI, PMI 的同比和环比增速
 """
 import json
 from datetime import datetime
 import sys
+import pandas as pd
 
 def fetch_flame_data_akshare():
     """使用 AKShare 获取数据"""
@@ -14,209 +18,160 @@ def fetch_flame_data_akshare():
         print("[FLAME] 尝试使用 AKShare 获取数据...", file=sys.stderr, flush=True)
         
         data = []
+        today_str = datetime.now().strftime('%Y-%m-%d')
         
-        # 获取国债收益率曲线
+        # 1. 获取国债收益率曲线
         try:
             bond_yield = ak.bond_china_yield()
-            treasury_data = bond_yield[bond_yield['曲线名称'] == '中债国债收益率曲线'].iloc[-1]
-            
-            data.append({
-                "dataType": "bond_market",
-                "indicator": "10Y国债收益率",
-                "value": float(treasury_data.get('10年', 1.8)),
-                "unit": "%",
-                "releaseDate": str(treasury_data.get('日期', datetime.now().date())),
-                "source": "中债登",
-                "description": "10年期国债到期收益率"
-            })
-            
-            data.append({
-                "dataType": "bond_market",
-                "indicator": "5Y国债收益率",
-                "value": float(treasury_data.get('5年', 1.65)),
-                "unit": "%",
-                "releaseDate": str(treasury_data.get('日期', datetime.now().date())),
-                "source": "中债登",
-                "description": "5年期国债到期收益率"
-            })
-            
-            print("[FLAME] AKShare 成功获取国债收益率", file=sys.stderr, flush=True)
+            if not bond_yield.empty:
+                treasury_data = bond_yield[bond_yield['曲线名称'] == '中债国债收益率曲线'].iloc[-1]
+                data.append({
+                    "dataType": "bond_market",
+                    "indicator": "10Y国债收益率",
+                    "value": float(treasury_data.get('10年', 0)),
+                    "unit": "%",
+                    "releaseDate": str(treasury_data.get('日期', today_str)),
+                    "source": "中债登",
+                    "description": "10年期国债到期收益率"
+                })
+                data.append({
+                    "dataType": "bond_market",
+                    "indicator": "5Y国债收益率",
+                    "value": float(treasury_data.get('5年', 0)),
+                    "unit": "%",
+                    "releaseDate": str(treasury_data.get('日期', today_str)),
+                    "source": "中债登",
+                    "description": "5年期国债到期收益率"
+                })
         except Exception as e:
             print(f"[FLAME] AKShare 获取国债收益率失败: {e}", file=sys.stderr, flush=True)
-        
-        # 获取宏观利率
+        print("[FLAME] 开始获取 CPI...", file=sys.stderr, flush=True)
+
+        # 2. 获取 CPI (同比 & 环比)
+        try:
+            cpi_y = ak.macro_china_cpi_yearly()
+            if not cpi_y.empty:
+                latest = cpi_y.iloc[-1]
+                val = latest['今值'] if pd.notnull(latest['今值']) else latest['前值']
+                data.append({
+                    "dataType": "macro",
+                    "indicator": "CPI同比",
+                    "value": float(val),
+                    "unit": "%",
+                    "releaseDate": str(latest['日期']),
+                    "source": "国家统计局",
+                    "description": "居民消费价格指数(同比)"
+                })
+            
+            cpi_m = ak.macro_china_cpi_monthly()
+            if not cpi_m.empty:
+                latest = cpi_m.iloc[-1]
+                val = latest['今值'] if pd.notnull(latest['今值']) else latest['前值']
+                data.append({
+                    "dataType": "macro",
+                    "indicator": "CPI环比",
+                    "value": float(val),
+                    "unit": "%",
+                    "releaseDate": str(latest['日期']),
+                    "source": "国家统计局",
+                    "description": "居民消费价格指数(环比)"
+                })
+        except Exception as e:
+            print(f"[FLAME] AKShare 获取 CPI 失败: {e}", file=sys.stderr, flush=True)
+        print("[FLAME] 开始获取 PPI...", file=sys.stderr, flush=True)
+
+        # 3. 获取 PPI (同比 & 环比尝试)
+        try:
+            ppi_y = ak.macro_china_ppi_yearly()
+            if not ppi_y.empty:
+                latest = ppi_y.iloc[-1]
+                val = latest['今值'] if pd.notnull(latest['今值']) else latest['前值']
+                data.append({
+                    "dataType": "macro",
+                    "indicator": "PPI同比",
+                    "value": float(val),
+                    "unit": "%",
+                    "releaseDate": str(latest['日期']),
+                    "source": "国家统计局",
+                    "description": "工业生产者出厂价格指数(同比)"
+                })
+            
+            # PPI 环比通过 macro_china_qyspjg (企业商品价格指数) 获取作为参考
+            qyspjg = ak.macro_china_qyspjg()
+            if not qyspjg.empty:
+                latest = qyspjg.iloc[0] # 东方财富接口通常最新在第一行
+                data.append({
+                    "dataType": "macro",
+                    "indicator": "PPI环比(参考)",
+                    "value": float(latest['总指数-环比增长']),
+                    "unit": "%",
+                    "releaseDate": today_str,
+                    "source": "东方财富",
+                    "description": "企业商品价格指数(环比)，用作PPI环比参考"
+                })
+        except Exception as e:
+            print(f"[FLAME] AKShare 获取 PPI 失败: {e}", file=sys.stderr, flush=True)
+        print("[FLAME] 开始获取 PMI...", file=sys.stderr, flush=True)
+
+        # 4. 获取 PMI
+        try:
+            pmi = ak.macro_china_pmi_yearly()
+            if not pmi.empty:
+                latest = pmi.iloc[-1]
+                val = latest['今值'] if pd.notnull(latest['今值']) else latest['前值']
+                data.append({
+                    "dataType": "macro",
+                    "indicator": "制造业PMI",
+                    "value": float(val),
+                    "unit": "%",
+                    "releaseDate": str(latest['日期']),
+                    "source": "国家统计局",
+                    "description": "官方制造业采购经理指数"
+                })
+        except Exception as e:
+            print(f"[FLAME] AKShare 获取 PMI 失败: {e}", file=sys.stderr, flush=True)
+        print("[FLAME] 开始获取 DR007...", file=sys.stderr, flush=True)
+
+        # 5. 获取 DR007
         try:
             macro_rate = ak.macro_bank_china_interest_rate()
-            if len(macro_rate) > 0:
+            if not macro_rate.empty:
                 latest = macro_rate.iloc[-1]
-                dr007_value = 1.45
-                
-                # 尝试获取 7 天期利率
+                dr007_value = 0
                 if '7天期' in latest:
                     dr007_value = float(latest['7天期'])
-                
                 data.append({
                     "dataType": "liquidity",
                     "indicator": "DR007",
                     "value": dr007_value,
                     "unit": "%",
-                    "releaseDate": datetime.now().strftime('%Y-%m-%d'),
+                    "releaseDate": today_str,
                     "source": "中国外汇交易中心",
                     "description": "7天期质押式回购加权平均利率"
                 })
-                
-                print("[FLAME] AKShare 成功获取 DR007", file=sys.stderr, flush=True)
         except Exception as e:
-            print(f"[FLAME] AKShare 获取宏观利率失败: {e}", file=sys.stderr, flush=True)
-        
-        if len(data) > 0:
-            print(f"[FLAME] AKShare 成功获取 {len(data)} 条数据", file=sys.stderr, flush=True)
-            return data
-    except ImportError:
-        print("[FLAME] AKShare 未安装", file=sys.stderr, flush=True)
-    except Exception as e:
-        print(f"[FLAME] AKShare 获取失败: {e}", file=sys.stderr, flush=True)
-    
-    return []
+            print(f"[FLAME] AKShare 获取 DR007 失败: {e}", file=sys.stderr, flush=True)
+        print("[FLAME] 所有数据获取尝试完毕。", file=sys.stderr, flush=True)
 
-def fetch_flame_data_tushare():
-    """使用 TuShare 获取数据"""
-    try:
-        import tushare as ts
-        print("[FLAME] 尝试使用 TuShare 获取数据...", file=sys.stderr, flush=True)
-        
-        data = []
-        
-        # 获取国债收益率
-        try:
-            pro = ts.pro_api()
-            # TuShare 获取国债收益率
-            bond_data = pro.cb_daily(ts_code='', start_date='', end_date='', limit=1)
-            
-            if bond_data is not None and len(bond_data) > 0:
-                print("[FLAME] TuShare 成功获取国债数据", file=sys.stderr, flush=True)
-        except Exception as e:
-            print(f"[FLAME] TuShare 获取国债数据失败: {e}", file=sys.stderr, flush=True)
-        
-        if len(data) > 0:
-            print(f"[FLAME] TuShare 成功获取 {len(data)} 条数据", file=sys.stderr, flush=True)
-            return data
-    except ImportError:
-        print("[FLAME] TuShare 未安装", file=sys.stderr, flush=True)
+        return data
     except Exception as e:
-        print(f"[FLAME] TuShare 获取失败: {e}", file=sys.stderr, flush=True)
-    
-    return []
+        print(f"[FLAME] AKShare 总体获取失败: {e}", file=sys.stderr, flush=True)
+        return []
 
 def get_default_data():
     """获取默认数据"""
+    today = datetime.now().strftime('%Y-%m-%d')
     return [
-        {
-            "dataType": "bond_market",
-            "indicator": "10Y国债收益率",
-            "value": 1.8,
-            "unit": "%",
-            "releaseDate": datetime.now().strftime('%Y-%m-%d'),
-            "source": "中债登",
-            "description": "10年期国债到期收益率"
-        },
-        {
-            "dataType": "bond_market",
-            "indicator": "5Y国债收益率",
-            "value": 1.65,
-            "unit": "%",
-            "releaseDate": datetime.now().strftime('%Y-%m-%d'),
-            "source": "中债登",
-            "description": "5年期国债到期收益率"
-        },
-        {
-            "dataType": "liquidity",
-            "indicator": "DR007",
-            "value": 1.45,
-            "unit": "%",
-            "releaseDate": datetime.now().strftime('%Y-%m-%d'),
-            "source": "中国外汇交易中心",
-            "description": "7天期质押式回购加权平均利率"
-        },
-        {
-            "dataType": "macro",
-            "indicator": "制造业PMI",
-            "value": 49.5,
-            "unit": "%",
-            "releaseDate": datetime.now().strftime('%Y-%m-%d'),
-            "source": "国家统计局",
-            "description": "制造业采购经理指数"
-        },
-        {
-            "dataType": "liquidity",
-            "indicator": "央行逆回购投放",
-            "value": 500,
-            "unit": "亿元",
-            "releaseDate": datetime.now().strftime('%Y-%m-%d'),
-            "source": "央行",
-            "description": "央行逆回购操作规模"
-        },
-        {
-            "dataType": "sentiment",
-            "indicator": "风险偏好指数",
-            "value": 45,
-            "unit": "点",
-            "releaseDate": datetime.now().strftime('%Y-%m-%d'),
-            "source": "市场观察",
-            "description": "市场风险偏好程度"
-        },
-        {
-            "dataType": "sentiment",
-            "indicator": "降息预期",
-            "value": 35,
-            "unit": "%",
-            "releaseDate": datetime.now().strftime('%Y-%m-%d'),
-            "source": "市场调查",
-            "description": "市场对年内降息的预期概率"
-        },
-        {
-            "dataType": "external",
-            "indicator": "美元指数",
-            "value": 104.5,
-            "unit": "点",
-            "releaseDate": datetime.now().strftime('%Y-%m-%d'),
-            "source": "彭博",
-            "description": "美元指数"
-        },
-        {
-            "dataType": "external",
-            "indicator": "中美10Y利差",
-            "value": -0.21,
-            "unit": "%",
-            "releaseDate": datetime.now().strftime('%Y-%m-%d'),
-            "source": "市场数据",
-            "description": "中国10Y国债与美国10Y国债收益率差"
-        }
+        {"dataType": "bond_market", "indicator": "10Y国债收益率", "value": 1.8, "unit": "%", "releaseDate": today, "source": "中债登", "description": "10年期国债到期收益率"},
+        {"dataType": "macro", "indicator": "CPI同比", "value": 2.1, "unit": "%", "releaseDate": today, "source": "国家统计局", "description": "居民消费价格指数"},
+        {"dataType": "macro", "indicator": "制造业PMI", "value": 49.5, "unit": "%", "releaseDate": today, "source": "国家统计局", "description": "制造业采购经理指数"}
     ]
-
-def fetch_flame_data():
-    """获取 FLAME 框架数据"""
-    # 优先使用 AKShare
-    data = fetch_flame_data_akshare()
-    if len(data) > 0:
-        return data
-    
-    # 次使用 TuShare
-    data = fetch_flame_data_tushare()
-    if len(data) > 0:
-        return data
-    
-    # 最后使用默认数据
-    print("[FLAME] 使用默认数据", file=sys.stderr, flush=True)
-    return get_default_data()
 
 if __name__ == '__main__':
     try:
-        result = fetch_flame_data()
+        result = fetch_flame_data_akshare()
+        if not result:
+            result = get_default_data()
         print(json.dumps(result, ensure_ascii=False, indent=2))
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        import traceback
-        traceback.print_exc()
-        # 输出默认数据
         print(json.dumps(get_default_data(), ensure_ascii=False, indent=2))
