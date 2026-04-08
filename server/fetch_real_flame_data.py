@@ -105,7 +105,7 @@ def fetch_flame_data_akshare():
                     "indicator": "PPI环比(参考)",
                     "value": float(latest['总指数-环比增长']),
                     "unit": "%",
-                    "releaseDate": today_str,
+                    "releaseDate": datetime.now().strftime('%Y-%m-%d'),
                     "source": "东方财富",
                     "description": "企业商品价格指数(环比)，用作PPI环比参考"
                 })
@@ -159,19 +159,17 @@ def fetch_flame_data_akshare():
         return []
 
 def get_default_data():
-    """获取默认数据"""
-    today = datetime.now().strftime('%Y-%m-%d')
-    return [
-        {"dataType": "bond_market", "indicator": "10Y国债收益率", "value": 1.8, "unit": "%", "releaseDate": today, "source": "中债登", "description": "10年期国债到期收益率"},
-        {"dataType": "macro", "indicator": "CPI同比", "value": 2.1, "unit": "%", "releaseDate": today, "source": "国家统计局", "description": "居民消费价格指数"},
-        {"dataType": "macro", "indicator": "制造业PMI", "value": 49.5, "unit": "%", "releaseDate": today, "source": "国家统计局", "description": "制造业采购经理指数"}
-    ]
+    """获取默认数据 - 仅在脚本初始化失败时返回空数组，不返回静态数据"""
+    # 根据约束要求，失败时返回空数据而非静态数据
+    return []
 
 if __name__ == '__main__':
     try:
         result = fetch_flame_data_akshare()
+        # 若获取失败，返回空数组而非静态数据
         if not result:
-            result = get_default_data()
+            result = []
         print(json.dumps(result, ensure_ascii=False, indent=2))
     except Exception as e:
-        print(json.dumps(get_default_data(), ensure_ascii=False, indent=2))
+        # 降级处理：返回空数据而非静态数据
+        print(json.dumps([], ensure_ascii=False, indent=2))

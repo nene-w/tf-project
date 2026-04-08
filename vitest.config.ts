@@ -15,5 +15,9 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["server/**/*.test.ts", "server/**/*.spec.ts"],
+    // 排除需要真实数据库/网络连接的集成测试（在 CI 中单独运行）
+    exclude: ["server/fundamentalData.integration.test.ts"],
+    testTimeout: 10000,
+    hookTimeout: 10000,
   },
 });
