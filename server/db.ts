@@ -5,7 +5,6 @@ import {
   users,
   emailSignals,
   fundamentalData,
-  InsertFundamentalData,
   fundamentalAnalysis,
   externalViews,
   viewConclusions,
@@ -200,52 +199,6 @@ export async function createFundamentalData(data: typeof fundamentalData.$inferI
   if (!db) throw new Error("Database not available");
 
   return await db.insert(fundamentalData).values(data);
-}
-
-/**
- * Upsert fundamental data using (indicator, dataType) as unique key.
- * If record exists, update it; otherwise insert new record.
- */
-export async function upsertFundamentalData(data: InsertFundamentalData) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-
-  if (!data.indicator || !data.dataType) {
-    throw new Error("indicator and dataType are required for upsert");
-  }
-
-  const existing = await db
-    .select()
-    .from(fundamentalData)
-    .where(
-      and(
-        eq(fundamentalData.indicator, data.indicator),
-        eq(fundamentalData.dataType, data.dataType)
-      )
-    )
-    .limit(1);
-
-  if (existing.length > 0) {
-    return await db
-      .update(fundamentalData)
-      .set({
-        value: data.value,
-        unit: data.unit,
-        releaseDate: data.releaseDate,
-        source: data.source,
-        description: data.description,
-        analyzed: data.analyzed,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(fundamentalData.indicator, data.indicator),
-          eq(fundamentalData.dataType, data.dataType)
-        )
-      );
-  } else {
-    return await db.insert(fundamentalData).values(data);
-  }
 }
 
 // ============ External Views ============

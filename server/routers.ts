@@ -11,7 +11,6 @@ import {
   createFundamentalAnalysis,
   getFundamentalData,
   createFundamentalData,
-  upsertFundamentalData,
   getExternalViews,
   createExternalView,
   getViewConclusions,
@@ -288,26 +287,16 @@ E：外部环境（美联储、中美利差、汇率）
       }),
 
     refresh: protectedProcedure
-      .mutation(async () => {
+      .mutation(async ({ ctx }) => {
         try {
-          console.log('[FundamentalData.refresh] 开始刷新 FLAME 数据...');
-          const { fetchRealFLAMEData, filterValidFLAMEData } = await import('./akshareService');
-          const flameData = await fetchRealFLAMEData();
-          const validData = filterValidFLAMEData(flameData);
-
-          if (validData.length === 0) {
-            return {
-              success: true,
-              message: '数据刷新完成，但未获取到新数据（AKShare 可能暂时不可用）',
-              count: 0,
-            };
-          }
-
+          const { fetchFLAMEData } = await import('./fetch_flame_data_wrapper');
+          const flameData = await fetchFLAMEData();
+          
+          // 存储数据到数据库
           let savedCount = 0;
-          const errors: string[] = [];
-          for (const item of validData) {
+          for (const item of flameData) {
             try {
-              await upsertFundamentalData({
+              await createFundamentalData({
                 dataType: item.dataType,
                 indicator: item.indicator,
                 value: String(item.value),
@@ -315,27 +304,26 @@ E：外部环境（美联储、中美利差、汇率）
                 releaseDate: item.releaseDate ? new Date(item.releaseDate) : new Date(),
                 source: item.source,
                 description: item.description,
-                analyzed: false,
               });
               savedCount++;
             } catch (error) {
-              const msg = `Failed to upsert ${item.indicator}: ${error}`;
-              console.error(`[FundamentalData.refresh] ${msg}`);
-              errors.push(msg);
+              console.error('[FundamentalData] Error saving data:', error);
             }
           }
-
+          
           return {
             success: true,
-            message: `成功刷新 ${savedCount} 条指标数据${errors.length > 0 ? `，失败 ${errors.length} 条` : ''}`,
-            count: savedCount,
+            dataCount: flameData.length,
+            savedCount,
+            message: `成功获取 ${flameData.length} 条数据，保存 ${savedCount} 条到数据库`
           };
         } catch (error) {
           console.error('[FundamentalData] Error refreshing FLAME data:', error);
           return {
             success: false,
-            message: `数据刷新失败: ${error instanceof Error ? error.message : String(error)}`,
-            count: 0,
+            dataCount: 0,
+            savedCount: 0,
+            message: '数据刷新失败，请稍后重试'
           };
         }
       }),
