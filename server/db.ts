@@ -198,7 +198,42 @@ export async function createFundamentalData(data: typeof fundamentalData.$inferI
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  return await db.insert(fundamentalData).values(data);
+  // 使用 upsert 逻辑：根据 indicator 和 dataType 唯一标识一个指标，如果已存在则更新，不存在则插入
+  // 注意：这里假设数据库中 indicator 和 dataType 的组合是唯一的，或者我们手动处理覆盖逻辑
+  try {
+    // 先尝试查找是否已存在该指标
+    const existing = await db
+      .select()
+      .from(fundamentalData)
+      .where(
+        and(
+          eq(fundamentalData.indicator, data.indicator),
+          eq(fundamentalData.dataType, data.dataType)
+        )
+      )
+      .limit(1);
+
+    if (existing.length > 0) {
+      // 如果存在，则更新
+      return await db
+        .update(fundamentalData)
+        .set({
+          value: data.value,
+          unit: data.unit,
+          releaseDate: data.releaseDate,
+          source: data.source,
+          description: data.description,
+          updatedAt: new Date(),
+        })
+        .where(eq(fundamentalData.id, existing[0].id));
+    } else {
+      // 如果不存在，则插入
+      return await db.insert(fundamentalData).values(data);
+    }
+  } catch (error) {
+    console.error(`[Database] Failed to upsert fundamental data for ${data.indicator}:`, error);
+    throw error;
+  }
 }
 
 // ============ External Views ============
