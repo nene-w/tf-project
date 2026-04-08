@@ -170,28 +170,40 @@ export async function createFundamentalAnalysis(
 // ============ Fundamental Data ============
 export async function getFundamentalData(
   dataType?: string,
-  limit = 50,
+  limit = 100,
   offset = 0
 ) {
   const db = await getDb();
   if (!db) return [];
 
-  if (dataType) {
-    return await db
+  // 优化查询逻辑：对于每个 indicator，只返回 releaseDate 最新的那条记录
+  // 这样可以从根本上解决“旧数据还在”的问题，即使数据库中有重复记录
+  try {
+    let query = db
       .select()
-      .from(fundamentalData)
-      .where(eq(fundamentalData.dataType, dataType))
-      .orderBy(desc(fundamentalData.releaseDate))
-      .limit(limit)
-      .offset(offset);
-  }
+      .from(fundamentalData);
 
-  return await db
-    .select()
-    .from(fundamentalData)
-    .orderBy(desc(fundamentalData.releaseDate))
-    .limit(limit)
-    .offset(offset);
+    if (dataType) {
+      query = query.where(eq(fundamentalData.dataType, dataType)) as any;
+    }
+
+    const allData = await query.orderBy(desc(fundamentalData.releaseDate));
+
+    // 在内存中进行去重，保留每个 indicator 的最新记录
+    const latestMap = new Map<string, typeof fundamentalData.$inferSelect>();
+    for (const item of allData) {
+      const key = `${item.dataType}:${item.indicator}`;
+      if (!latestMap.has(key)) {
+        latestMap.set(key, item);
+      }
+    }
+
+    const result = Array.from(latestMap.values());
+    return result.slice(offset, offset + limit);
+  } catch (error) {
+    console.error("[Database] Failed to get latest fundamental data:", error);
+    return [];
+  }
 }
 
 export async function createFundamentalData(data: typeof fundamentalData.$inferInsert) {

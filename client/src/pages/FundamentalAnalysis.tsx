@@ -223,7 +223,7 @@ export default function FundamentalAnalysis() {
                       {getDataTypeLabel(data.dataType)}
                     </div>
                     <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                      {new Date(data.releaseDate).toLocaleDateString()}
+                      {data.releaseDate ? new Date(data.releaseDate).toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' }) : 'N/A'}
                     </span>
                   </div>
                   <div className="flex items-end justify-between">
