@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, RefreshCw, BarChart3, TrendingUp, Activity, Globe, HeartPulse, Search, ArrowUpDown, Filter } from "lucide-react";
 import { Streamdown } from "streamdown";
 import { toast } from "sonner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function FundamentalAnalysis() {
   const [isGenerating, setIsGenerating] = useState(false);
@@ -24,7 +24,7 @@ export default function FundamentalAnalysis() {
   });
 
   const { data: fundamentalData, refetch: refetchData } = trpc.fundamentalData.list.useQuery({
-    limit: 200, // 增加限制以获取全部 76 个指标
+    limit: 200,
   });
 
   const refreshDataMutation = trpc.fundamentalData.refresh.useMutation({
@@ -102,18 +102,15 @@ export default function FundamentalAnalysis() {
     }
   };
 
-  // 过滤和排序后的指标数据
   const filteredData = useMemo(() => {
     if (!fundamentalData) return [];
     
     let result = [...fundamentalData];
 
-    // 1. 维度筛选
     if (activeTab !== "all") {
       result = result.filter(item => item.dataType === activeTab);
     }
 
-    // 2. 关键词搜索
     if (searchTerm) {
       const lowerSearch = searchTerm.toLowerCase();
       result = result.filter(item => 
@@ -122,7 +119,6 @@ export default function FundamentalAnalysis() {
       );
     }
 
-    // 3. 排序
     result.sort((a, b) => {
       if (sortBy === "date-desc") return new Date(b.releaseDate).getTime() - new Date(a.releaseDate).getTime();
       if (sortBy === "date-asc") return new Date(a.releaseDate).getTime() - new Date(b.releaseDate).getTime();
@@ -133,7 +129,6 @@ export default function FundamentalAnalysis() {
     return result;
   }, [fundamentalData, activeTab, searchTerm, sortBy]);
 
-  // 排序后的报告（最新的在最上面）
   const sortedAnalyses = useMemo(() => {
     if (!analyses) return [];
     return [...analyses].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -141,7 +136,6 @@ export default function FundamentalAnalysis() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5">
-      {/* Header */}
       <div className="border-b border-border/50 backdrop-blur-sm sticky top-0 z-40 bg-background/80">
         <div className="container flex items-center justify-between h-16">
           <div>
@@ -175,7 +169,6 @@ export default function FundamentalAnalysis() {
 
       <div className="container py-8">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Left Column: Data Overview (F, L, A, M, E) - Now spans 4 columns for better layout */}
           <div className="lg:col-span-4 space-y-6">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -259,7 +252,6 @@ export default function FundamentalAnalysis() {
             </div>
           </div>
 
-          {/* Right Column: Analysis Reports - Now spans 8 columns */}
           <div className="lg:col-span-8 space-y-6">
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <TrendingUp className="w-5 h-5 text-primary" />
@@ -340,22 +332,6 @@ export default function FundamentalAnalysis() {
           </div>
         </div>
       </div>
-      
-      <style jsx>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(var(--primary), 0.1);
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(var(--primary), 0.2);
-        }
-      `}</style>
     </div>
   );
 }
