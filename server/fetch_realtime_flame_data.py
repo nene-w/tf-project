@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-获取实时 FLAME 框架数据 (优化版)
-1. 仅显示最新数据，不显示历史情况。
-2. 指标日期显示为与指标对应的真实日期，而非当前日期。
+获取实时 FLAME 框架数据 (深度补全版)
+1. 深度补全基本面维度的 14 个核心指标。
+2. 仅显示最新数据，并使用指标对应的真实日期。
 3. 接入 AKShare 实时行情接口，覆盖 76 个指标。
 """
 import json
@@ -41,7 +41,7 @@ def safe_date(date_val):
 def fetch_flame_data():
     """获取全量 FLAME 框架数据 (仅最新值)"""
     data = []
-    print("[FLAME] 开始全量指标实时抓取 (仅最新值)...", file=sys.stderr, flush=True)
+    print("[FLAME] 开始全量指标实时抓取 (深度补全基本面)...", file=sys.stderr, flush=True)
 
     # --- 一、基本面维度 (Fundamentals) ---
     try:
@@ -51,39 +51,72 @@ def fetch_flame_data():
             latest = pmi_df.iloc[-1]
             data.append({"dataType": "macro", "indicator": "制造业PMI", "value": safe_float(latest['今值']), "unit": "%", "releaseDate": safe_date(latest['日期']), "source": "国家统计局"})
         
-        cpi_df = ak.macro_china_cpi_yearly()
-        if not cpi_df.empty:
-            latest = cpi_df.iloc[-1]
+        cpi_y_df = ak.macro_china_cpi_yearly()
+        if not cpi_y_df.empty:
+            latest = cpi_y_df.iloc[-1]
             data.append({"dataType": "macro", "indicator": "CPI同比", "value": safe_float(latest['今值']), "unit": "%", "releaseDate": safe_date(latest['日期']), "source": "国家统计局"})
             
-        ppi_df = ak.macro_china_ppi_yearly()
-        if not ppi_df.empty:
-            latest = ppi_df.iloc[-1]
-            data.append({"dataType": "macro", "indicator": "PPI同比", "value": safe_float(latest['今值']), "unit": "%", "releaseDate": safe_date(latest['日期']), "source": "国家统计局"})
+        cpi_m_df = ak.macro_china_cpi_monthly()
+        if not cpi_m_df.empty:
+            latest = cpi_m_df.iloc[-1]
+            data.append({"dataType": "macro", "indicator": "CPI环比", "value": safe_float(latest['今值']), "unit": "%", "releaseDate": safe_date(latest['日期']), "source": "国家统计局"})
 
-        # 2. 货币供应与社融 (M2, 社融)
-        m2_df = ak.macro_china_m2_yearly()
-        if not m2_df.empty:
-            latest = m2_df.iloc[-1]
-            data.append({"dataType": "macro", "indicator": "M2同比增速", "value": safe_float(latest['今值']), "unit": "%", "releaseDate": safe_date(latest['日期']), "source": "央行"})
+        ppi_y_df = ak.macro_china_ppi_yearly()
+        if not ppi_y_df.empty:
+            latest = ppi_y_df.iloc[-1]
+            data.append({"dataType": "macro", "indicator": "PPI同比", "value": safe_float(latest['今值']), "unit": "%", "releaseDate": safe_date(latest['日期']), "source": "国家统计局"})
+            
+        ppi_m_df = ak.macro_china_ppi_monthly()
+        if not ppi_m_df.empty:
+            latest = ppi_m_df.iloc[-1]
+            data.append({"dataType": "macro", "indicator": "PPI环比", "value": safe_float(latest['今值']), "unit": "%", "releaseDate": safe_date(latest['日期']), "source": "国家统计局"})
+
+        # 2. 货币供应与社融 (M2, M1, 社融)
+        money_supply_df = ak.macro_china_money_supply()
+        if not money_supply_df.empty:
+            latest = money_supply_df.iloc[-1]
+            date = safe_date(latest['统计时间'])
+            data.append({"dataType": "macro", "indicator": "M2同比增速", "value": safe_float(latest['货币和准货币(M2)-同比增长']), "unit": "%", "releaseDate": date, "source": "央行"})
+            data.append({"dataType": "macro", "indicator": "M1同比增速", "value": safe_float(latest['货币(M1)-同比增长']), "unit": "%", "releaseDate": date, "source": "央行"})
             
         sh_df = ak.macro_china_shrzgm()
         if not sh_df.empty:
             latest = sh_df.iloc[-1]
             data.append({"dataType": "macro", "indicator": "社会融资规模", "value": safe_float(latest['增量']), "unit": "万亿元", "releaseDate": safe_date(latest['月份']), "source": "央行"})
+            # 估算社融增速 (如果数据源不直接提供，可由增量计算或使用存量同比)
+            data.append({"dataType": "macro", "indicator": "社融增速", "value": safe_float(latest.get('同比增长')), "unit": "%", "releaseDate": safe_date(latest['月份']), "source": "央行"})
+
+        # 3. 信贷结构与财政 (企业/居民贷款, 财政存款)
+        credit_df = ak.macro_china_new_financial_credit()
+        if not credit_df.empty:
+            latest = credit_df.iloc[-1]
+            date = safe_date(latest['月份'])
+            data.append({"dataType": "macro", "indicator": "企业中长期贷款新增", "value": safe_float(latest.get('企(事)业单位贷款-中长期')), "unit": "亿元", "releaseDate": date, "source": "央行"})
+            data.append({"dataType": "macro", "indicator": "居民中长期贷款新增", "value": safe_float(latest.get('住户部门贷款-中长期')), "unit": "亿元", "releaseDate": date, "source": "央行"})
+            data.append({"dataType": "macro", "indicator": "短期贷款新增", "value": safe_float(latest.get('住户部门贷款-短期')), "unit": "亿元", "releaseDate": date, "source": "央行"})
+
+        balance_sheet_df = ak.macro_china_central_bank_balance_sheet()
+        if not balance_sheet_df.empty:
+            latest = balance_sheet_df.iloc[-1]
+            date = safe_date(latest['统计时间'])
+            data.append({"dataType": "macro", "indicator": "财政存款余额", "value": safe_float(latest.get('政府存款')), "unit": "亿元", "releaseDate": date, "source": "央行"})
+            # 计算财政存款变化 (与上月对比)
+            if len(balance_sheet_df) > 1:
+                prev = balance_sheet_df.iloc[-2]
+                change = safe_float(latest.get('政府存款')) - safe_float(prev.get('政府存款'))
+                data.append({"dataType": "macro", "indicator": "财政存款变化", "value": change, "unit": "亿元", "releaseDate": date, "source": "Calculated"})
+
     except Exception as e:
         print(f"[FLAME] 基本面数据抓取异常: {e}", file=sys.stderr)
 
     # --- 二、流动性维度 (Liquidity) ---
     try:
-        # 1. 银行间利率 (DR001, DR007)
         dr_df = ak.macro_bank_china_interest_rate()
         if not dr_df.empty:
             latest = dr_df.iloc[-1]
             data.append({"dataType": "liquidity", "indicator": "DR001", "value": safe_float(latest['隔夜']), "unit": "%", "releaseDate": safe_date(latest['日期']), "source": "外汇交易中心"})
             data.append({"dataType": "liquidity", "indicator": "DR007", "value": safe_float(latest['7天期']), "unit": "%", "releaseDate": safe_date(latest['日期']), "source": "外汇交易中心"})
 
-        # 2. 央行公开市场操作 (OMO)
         omo_df = ak.macro_china_central_bank_omo()
         if not omo_df.empty:
             latest = omo_df.iloc[-1]
@@ -94,7 +127,6 @@ def fetch_flame_data():
 
     # --- 三、债券供需维度 (Asset/Bond Market) ---
     try:
-        # 1. 国债收益率曲线 (1Y, 5Y, 10Y, 30Y)
         bond_yield = ak.bond_china_yield()
         if not bond_yield.empty:
             curve = bond_yield[bond_yield['曲线名称'] == '中债国债收益率曲线']
@@ -104,7 +136,6 @@ def fetch_flame_data():
                 for tenure in ['1年', '5年', '10年', '30年']:
                     data.append({"dataType": "bond_market", "indicator": f"{tenure}国债收益率", "value": safe_float(latest[tenure]), "unit": "%", "releaseDate": date, "source": "中债登"})
                 
-                # 计算利差
                 cn10 = safe_float(latest['10年'])
                 cn1 = safe_float(latest['1年'])
                 if cn10 and cn1:
@@ -114,18 +145,15 @@ def fetch_flame_data():
 
     # --- 四、市场情绪维度 (Market Sentiment) ---
     try:
-        # 1. 国债期货持仓 (主力合约示例)
         futures_df = ak.futures_zh_spot(symbol="T2406")
         if not futures_df.empty:
             latest = futures_df.iloc[0]
-            # 期货实时行情通常不带日期，使用当前日期作为交易日
             data.append({"dataType": "sentiment", "indicator": "T合约持仓量", "value": safe_float(latest.get('hold') or latest.get('持仓量')), "unit": "手", "releaseDate": datetime.now().strftime('%Y-%m-%d'), "source": "中金所"})
     except Exception as e:
         print(f"[FLAME] 市场情绪数据抓取异常: {e}", file=sys.stderr)
 
     # --- 五、外部环境维度 (External Environment) ---
     try:
-        # 1. 美债收益率 & 中美利差
         us_zh_df = ak.bond_zh_us_rate()
         if not us_zh_df.empty:
             latest = us_zh_df.iloc[-1]
@@ -138,7 +166,6 @@ def fetch_flame_data():
             if cn10 and us10:
                 data.append({"dataType": "external", "indicator": "中美10Y利差", "value": cn10 - us10, "unit": "%", "releaseDate": date, "source": "Calculated"})
 
-        # 2. 商品与汇率
         oil_df = ak.futures_foreign_commodity_realtime(symbol="OIL")
         if not oil_df.empty:
             brent = oil_df[oil_df['名称'] == '布伦特原油']
