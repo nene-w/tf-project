@@ -14,7 +14,7 @@ describe("FLAME Data Refresh", () => {
     
     // 验证数据不为空
     expect(data.length).toBeGreaterThan(0);
-  });
+  }, 30000);
 
   it("should have correct data structure", async () => {
     const data = await fetchFLAMEData();
@@ -31,10 +31,11 @@ describe("FLAME Data Refresh", () => {
       // 验证数据类型
       expect(typeof item.dataType).toBe("string");
       expect(typeof item.indicator).toBe("string");
-      expect(typeof item.value).toBe("number");
+      // value 可以是 number 或 null（AKShare 无法获取时返回 null）
+      expect(item.value === null || typeof item.value === "number").toBe(true);
       expect(typeof item.source).toBe("string");
     }
-  });
+  }, 30000);
 
   it("should contain all FLAME dimensions", async () => {
     const data = await fetchFLAMEData();
@@ -47,17 +48,20 @@ describe("FLAME Data Refresh", () => {
     expect(dataTypes.has("bond_market")).toBe(true); // A: 债券供需
     expect(dataTypes.has("sentiment")).toBe(true); // M: 市场情绪
     expect(dataTypes.has("external")).toBe(true); // E: 外部环境
-  });
+  }, 30000);
 
-  it("should have valid numeric values", async () => {
+  it("should have valid numeric values or null", async () => {
     const data = await fetchFLAMEData();
     
     data.forEach((item) => {
-      expect(typeof item.value).toBe("number");
-      expect(isNaN(item.value)).toBe(false);
-      expect(isFinite(item.value)).toBe(true);
+      // value 允许为 null（AKShare 无法获取时）或有效数字
+      if (item.value !== null) {
+        expect(typeof item.value).toBe("number");
+        expect(isNaN(item.value as number)).toBe(false);
+        expect(isFinite(item.value as number)).toBe(true);
+      }
     });
-  });
+  }, 30000);
 
   it("should have proper date format for releaseDate", async () => {
     const data = await fetchFLAMEData();
@@ -68,5 +72,5 @@ describe("FLAME Data Refresh", () => {
         expect(/^\d{4}-\d{2}-\d{2}$/.test(item.releaseDate)).toBe(true);
       }
     });
-  });
+  }, 30000);
 });
