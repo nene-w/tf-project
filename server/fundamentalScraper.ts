@@ -48,7 +48,7 @@ export async function fetchAKShareData(): Promise<FundamentalIndicator[]> {
     }
 
     // 过滤掉 stdout 中的非 JSON 内容（如果有的话）
-    const jsonMatch = stdout.match(/\[\s*\{.*\}\s*\]/s);
+    const jsonMatch = stdout.match(/\[[\s\S]*\]/);
     const jsonStr = jsonMatch ? jsonMatch[0] : stdout;
 
     const data = JSON.parse(jsonStr);
