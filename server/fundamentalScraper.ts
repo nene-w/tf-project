@@ -29,14 +29,29 @@ export async function fetchAKShareData(): Promise<FundamentalIndicator[]> {
     const scriptPath = path.join(__dirname, 'fetch_realtime_flame_data.py');
     console.log(`[FundamentalScraper] Executing Python script: ${scriptPath}`);
     
-    const { stdout, stderr } = await execAsync(`python3 ${scriptPath}`);
+    // 尝试使用 python3 或 python 执行
+    let stdout, stderr;
+    try {
+      const result = await execAsync(`python3 ${scriptPath}`);
+      stdout = result.stdout;
+      stderr = result.stderr;
+    } catch (e: any) {
+      console.warn('[FundamentalScraper] python3 failed, trying python...', e.message);
+      const result = await execAsync(`python ${scriptPath}`);
+      stdout = result.stdout;
+      stderr = result.stderr;
+    }
     
-    if (stderr && !stdout) {
-      console.error('[FundamentalScraper] Python script error:', stderr);
-      throw new Error(stderr);
+    if (!stdout) {
+      console.error('[FundamentalScraper] Python script produced no output. Stderr:', stderr);
+      throw new Error('Python script produced no output');
     }
 
-    const data = JSON.parse(stdout);
+    // 过滤掉 stdout 中的非 JSON 内容（如果有的话）
+    const jsonMatch = stdout.match(/\[\s*\{.*\}\s*\]/s);
+    const jsonStr = jsonMatch ? jsonMatch[0] : stdout;
+
+    const data = JSON.parse(jsonStr);
     return data.map((d: any) => ({
       dataType: d.dataType,
       indicator: d.indicator,

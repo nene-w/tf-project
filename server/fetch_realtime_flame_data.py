@@ -193,7 +193,19 @@ def fetch_flame_data():
     return data
 
 if __name__ == '__main__':
+    # 强制设置 stdout 编码为 utf-8
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    
     try:
-        print(json.dumps(fetch_flame_data(), ensure_ascii=False, indent=2))
+        # 仅输出 JSON 结果，不输出任何其他信息
+        result = fetch_flame_data()
+        print(json.dumps(result, ensure_ascii=False))
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr); sys.exit(1)
+        # 错误信息输出到 stderr
+        error_info = {
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }
+        print(json.dumps(error_info, ensure_ascii=False), file=sys.stderr)
+        sys.exit(1)
