@@ -1,211 +1,305 @@
 #!/usr/bin/env python3
 """
-获取实时 FLAME 框架数据 (全量深度补全版)
-1. 深度补全 76 个指标，接入 AKShare 实时行情。
-2. 仅显示最新数据，并使用指标对应的真实日期。
-3. 修正指标：R007 改为 DR007，删除配置意愿类指标。
+获取实时 FLAME 框架数据 (已验证接口版)
+- 优先使用日级别数据；无日级别则使用月级别
+- 只保留在当前环境经过测试可用的 AKShare 接口
+- 超时接口（东财/金十等）已移除，改为 null 兜底
 """
 import json
-from datetime import datetime, timedelta
 import sys
+import io
 import traceback
-import pandas as pd
+from datetime import datetime, timedelta
 
 try:
+    import pandas as pd
     import akshare as ak
 except ImportError:
     import subprocess
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "akshare"])
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "akshare", "--quiet"],
+                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    import pandas as pd
     import akshare as ak
+
 
 def safe_float(val):
     try:
-        if val is None or pd.isna(val): return None
+        if val is None or (isinstance(val, float) and pd.isna(val)):
+            return None
         return float(val)
-    except: return None
+    except Exception:
+        return None
 
-def safe_date(date_val):
+
+def safe_date(val):
     try:
-        if date_val is None or pd.isna(date_val): return None
-        if isinstance(date_val, (datetime, pd.Timestamp)):
-            return date_val.strftime('%Y-%m-%d')
-        return str(date_val)
-    except: return None
+        if val is None:
+            return None
+        if isinstance(val, (datetime, pd.Timestamp)):
+            return val.strftime('%Y-%m-%d')
+        s = str(val)
+        # 处理 "2026年02月份" 格式
+        if '年' in s and '月' in s:
+            s = s.replace('年', '-').replace('月份', '').replace('月', '')
+            parts = s.split('-')
+            return f"{parts[0]}-{parts[1].zfill(2)}"
+        # 处理 "202602" 格式
+        if len(s) == 6 and s.isdigit():
+            return f"{s[:4]}-{s[4:]}"
+        return s[:10] if len(s) >= 10 else s
+    except Exception:
+        return None
+
+
+def today_str():
+    return datetime.now().strftime('%Y-%m-%d')
+
 
 def fetch_flame_data():
     data = []
-    
-    # --- 1. 基本面 (Fundamentals) ---
-    try:
-        # PMI
-        pmi = ak.macro_china_pmi_yearly()
-        if not pmi.empty:
-            latest = pmi.iloc[-1]
-            data.append({"dataType": "macro", "indicator": "制造业PMI", "value": safe_float(latest['今值']), "unit": "%", "releaseDate": safe_date(latest['日期']), "source": "国家统计局"})
-        
-        # CPI/PPI
-        cpi_y = ak.macro_china_cpi_yearly(); cpi_m = ak.macro_china_cpi_monthly()
-        if not cpi_y.empty: data.append({"dataType": "macro", "indicator": "CPI同比", "value": safe_float(cpi_y.iloc[-1]['今值']), "unit": "%", "releaseDate": safe_date(cpi_y.iloc[-1]['日期']), "source": "国家统计局"})
-        if not cpi_m.empty: data.append({"dataType": "macro", "indicator": "CPI环比", "value": safe_float(cpi_m.iloc[-1]['今值']), "unit": "%", "releaseDate": safe_date(cpi_m.iloc[-1]['日期']), "source": "国家统计局"})
-        
-        ppi_y = ak.macro_china_ppi_yearly(); ppi_m = ak.macro_china_ppi_monthly()
-        if not ppi_y.empty: data.append({"dataType": "macro", "indicator": "PPI同比", "value": safe_float(ppi_y.iloc[-1]['今值']), "unit": "%", "releaseDate": safe_date(ppi_y.iloc[-1]['日期']), "source": "国家统计局"})
-        if not ppi_m.empty: data.append({"dataType": "macro", "indicator": "PPI环比", "value": safe_float(ppi_m.iloc[-1]['今值']), "unit": "%", "releaseDate": safe_date(ppi_m.iloc[-1]['日期']), "source": "国家统计局"})
+    today = datetime.now().strftime('%Y%m%d')
+    last7 = (datetime.now() - timedelta(days=7)).strftime('%Y%m%d')
 
-        # 货币与社融
+    # ─────────────────────────────────────────────
+    # F 基本面 (Fundamentals)
+    # 接口: macro_china_money_supply (月级别, 可用)
+    #       macro_china_shrzgm (月级别, 可用)
+    #       macro_china_qyspjg (月级别, 可用, 用作 PPI 替代)
+    #       macro_china_lpr (月级别) - 东财超时，已移除
+    #       macro_china_pmi/cpi/ppi - 金十超时，已移除
+    #       macro_china_new_financial_credit - 东财超时，已移除
+    # ─────────────────────────────────────────────
+    try:
         ms = ak.macro_china_money_supply()
         if not ms.empty:
-            latest = ms.iloc[-1]; date = safe_date(latest['统计时间'])
-            data.append({"dataType": "macro", "indicator": "M2同比增速", "value": safe_float(latest['货币和准货币(M2)-同比增长']), "unit": "%", "releaseDate": date, "source": "央行"})
-            data.append({"dataType": "macro", "indicator": "M1同比增速", "value": safe_float(latest['货币(M1)-同比增长']), "unit": "%", "releaseDate": date, "source": "央行"})
-        
+            latest = ms.iloc[0]  # 倒序，第一行最新
+            date = safe_date(latest['月份'])
+            data.append({"dataType": "macro", "indicator": "M2同比增速",
+                         "value": safe_float(latest['货币和准货币(M2)-同比增长']),
+                         "unit": "%", "releaseDate": date, "source": "央行"})
+            data.append({"dataType": "macro", "indicator": "M1同比增速",
+                         "value": safe_float(latest['货币(M1)-同比增长']),
+                         "unit": "%", "releaseDate": date, "source": "央行"})
+    except Exception:
+        pass
+
+    try:
         sh = ak.macro_china_shrzgm()
         if not sh.empty:
-            latest = sh.iloc[-1]
-            data.append({"dataType": "macro", "indicator": "社会融资规模", "value": safe_float(latest['增量']), "unit": "万亿元", "releaseDate": safe_date(latest['月份']), "source": "央行"})
-            data.append({"dataType": "macro", "indicator": "社融增速", "value": safe_float(latest.get('同比增长')), "unit": "%", "releaseDate": safe_date(latest['月份']), "source": "央行"})
+            latest = sh.iloc[-1]  # 正序，最后一行最新
+            date = safe_date(latest['月份'])
+            data.append({"dataType": "macro", "indicator": "社会融资规模",
+                         "value": safe_float(latest['社会融资规模增量']),
+                         "unit": "亿元", "releaseDate": date, "source": "央行"})
+    except Exception:
+        pass
 
-        # 信贷结构与财政
-        credit = ak.macro_china_new_financial_credit()
-        if not credit.empty:
-            latest = credit.iloc[-1]; date = safe_date(latest['月份'])
-            data.append({"dataType": "macro", "indicator": "企业中长期贷款新增", "value": safe_float(latest.get('企(事)业单位贷款-中长期')), "unit": "亿元", "releaseDate": date, "source": "央行"})
-            data.append({"dataType": "macro", "indicator": "居民中长期贷款新增", "value": safe_float(latest.get('住户部门贷款-中长期')), "unit": "亿元", "releaseDate": date, "source": "央行"})
-            data.append({"dataType": "macro", "indicator": "短期贷款新增", "value": safe_float(latest.get('住户部门贷款-短期')), "unit": "亿元", "releaseDate": date, "source": "央行"})
-
-        bs = ak.macro_china_central_bank_balance_sheet()
-        if not bs.empty:
-            latest = bs.iloc[-1]; date = safe_date(latest['统计时间'])
-            data.append({"dataType": "macro", "indicator": "财政存款余额", "value": safe_float(latest.get('政府存款')), "unit": "亿元", "releaseDate": date, "source": "央行"})
-            if len(bs) > 1:
-                data.append({"dataType": "macro", "indicator": "财政存款变化", "value": safe_float(latest.get('政府存款')) - safe_float(bs.iloc[-2].get('政府存款')), "unit": "亿元", "releaseDate": date, "source": "Calculated"})
-    except: pass
-
-    # --- 2. 流动性 (Liquidity) ---
     try:
-        # DR利率
-        dr = ak.macro_bank_china_interest_rate()
-        if not dr.empty:
-            latest = dr.iloc[-1]; date = safe_date(latest['日期'])
-            data.append({"dataType": "liquidity", "indicator": "DR001", "value": safe_float(latest['隔夜']), "unit": "%", "releaseDate": date, "source": "外汇交易中心"})
-            data.append({"dataType": "liquidity", "indicator": "DR007", "value": safe_float(latest['7天期']), "unit": "%", "releaseDate": date, "source": "外汇交易中心"})
-            data.append({"dataType": "liquidity", "indicator": "DR014", "value": safe_float(latest.get('14天期')), "unit": "%", "releaseDate": date, "source": "外汇交易中心"})
-            data.append({"dataType": "liquidity", "indicator": "DR1M", "value": safe_float(latest.get('1个月期')), "unit": "%", "releaseDate": date, "source": "外汇交易中心"})
-            
-            # 修正：将 R-DR007 利差中的 R007 逻辑修正为基于 DR007 的分析（如果需要利差，通常是 R007 - DR007）
-            # 但用户要求 R007 改成 DR007，这里我们确保 DR007 存在
-            r007 = safe_float(latest.get('R007'))
-            dr007 = safe_float(latest['7天期'])
-            if r007 and dr007:
-                data.append({"dataType": "liquidity", "indicator": "R-DR007利差", "value": r007 - dr007, "unit": "%", "releaseDate": date, "source": "Calculated"})
+        qy = ak.macro_china_qyspjg()
+        if not qy.empty:
+            latest = qy.iloc[0]  # 倒序，第一行最新
+            date = safe_date(latest['月份'])
+            data.append({"dataType": "macro", "indicator": "企业商品价格指数同比",
+                         "value": safe_float(latest['总指数-同比增长']),
+                         "unit": "%", "releaseDate": date, "source": "国家统计局"})
+    except Exception:
+        pass
 
-        # OMO
-        omo = ak.macro_china_central_bank_omo()
-        if not omo.empty:
-            latest = omo.iloc[-1]; date = safe_date(latest['日期'])
-            data.append({"dataType": "liquidity", "indicator": "逆回购投放规模", "value": safe_float(latest['投放']), "unit": "亿元", "releaseDate": date, "source": "央行"})
-            data.append({"dataType": "liquidity", "indicator": "逆回购利率(7D)", "value": safe_float(latest['利率']), "unit": "%", "releaseDate": date, "source": "央行"})
-    except: pass
+    # ─────────────────────────────────────────────
+    # L 流动性 (Liquidity)
+    # 接口: bond_china_yield 中的 Shibor 替代 (日级别, 可用)
+    #       macro_bank_china_interest_rate - 金十超时，已移除
+    #       rate_interbank - 东财超时，已移除
+    # 用国债收益率短端（1Y）作为流动性参考
+    # ─────────────────────────────────────────────
+    # 流动性指标通过债券收益率曲线短端间接获取，见下方债券供需部分
 
-    # --- 3. 债券供需 (Bond Market) ---
+    # ─────────────────────────────────────────────
+    # A 债券供需 (Bond Market)
+    # 接口: bond_china_yield (日级别, 可用 ✓)
+    # ─────────────────────────────────────────────
     try:
-        by = ak.bond_china_yield()
+        by = ak.bond_china_yield(start_date=last7, end_date=today)
         if not by.empty:
             curve = by[by['曲线名称'] == '中债国债收益率曲线']
             if not curve.empty:
-                latest = curve.iloc[-1]; date = safe_date(latest['日期'])
-                for t in ['1年', '5年', '10年', '30年']:
-                    data.append({"dataType": "bond_market", "indicator": f"{t}国债收益率", "value": safe_float(latest[t]), "unit": "%", "releaseDate": date, "source": "中债登"})
-                
+                latest = curve.iloc[-1]
+                date = safe_date(latest['日期'])
+                for tenor in ['3月', '6月', '1年', '3年', '5年', '7年', '10年', '30年']:
+                    if tenor in latest.index:
+                        data.append({"dataType": "bond_market",
+                                     "indicator": f"{tenor}国债收益率",
+                                     "value": safe_float(latest[tenor]),
+                                     "unit": "%", "releaseDate": date, "source": "中债登"})
+
                 # 利差计算
-                c10 = safe_float(latest['10年']); c1 = safe_float(latest['1年']); c30 = safe_float(latest['30年']); c5 = safe_float(latest['5年'])
-                if c10 and c1: data.append({"dataType": "bond_market", "indicator": "10Y-1Y利差", "value": c10 - c1, "unit": "%", "releaseDate": date, "source": "Calculated"})
-                if c30 and c10: data.append({"dataType": "bond_market", "indicator": "30Y-10Y利差", "value": c30 - c10, "unit": "%", "releaseDate": date, "source": "Calculated"})
-                if c5 and c1: data.append({"dataType": "bond_market", "indicator": "5Y-1Y利差", "value": c5 - c1, "unit": "%", "releaseDate": date, "source": "Calculated"})
-    except: pass
+                c1 = safe_float(latest.get('1年'))
+                c5 = safe_float(latest.get('5年'))
+                c10 = safe_float(latest.get('10年'))
+                c30 = safe_float(latest.get('30年'))
+                if c10 is not None and c1 is not None:
+                    data.append({"dataType": "bond_market", "indicator": "10Y-1Y利差",
+                                 "value": round(c10 - c1, 4), "unit": "%",
+                                 "releaseDate": date, "source": "Calculated"})
+                if c30 is not None and c10 is not None:
+                    data.append({"dataType": "bond_market", "indicator": "30Y-10Y利差",
+                                 "value": round(c30 - c10, 4), "unit": "%",
+                                 "releaseDate": date, "source": "Calculated"})
+                if c5 is not None and c1 is not None:
+                    data.append({"dataType": "bond_market", "indicator": "5Y-1Y利差",
+                                 "value": round(c5 - c1, 4), "unit": "%",
+                                 "releaseDate": date, "source": "Calculated"})
 
-    # --- 4. 市场情绪 (Sentiment) ---
+                # 用 1Y 国债收益率作为流动性参考（短端利率）
+                if c1 is not None:
+                    data.append({"dataType": "liquidity", "indicator": "1Y国债收益率(流动性参考)",
+                                 "value": c1, "unit": "%", "releaseDate": date, "source": "中债登"})
+    except Exception:
+        pass
+
+    # ─────────────────────────────────────────────
+    # M 市场情绪 (Sentiment)
+    # 接口: futures_zh_daily_sina (日级别, 可用 ✓)
+    # ─────────────────────────────────────────────
     try:
-        # T/TF合约持仓
-        # 修正：删除配置意愿类指标（银行、基金、保险配置意愿等）
-        for sym, name in [("T2406", "T合约持仓量"), ("TF2406", "F合约持仓量")]:
-            f_df = ak.futures_zh_spot(symbol=sym)
-            if not f_df.empty:
-                latest = f_df.iloc[0]
-                data.append({"dataType": "sentiment", "indicator": name, "value": safe_float(latest.get('hold') or latest.get('持仓量')), "unit": "手", "releaseDate": datetime.now().strftime('%Y-%m-%d'), "source": "中金所"})
-    except: pass
+        # 获取当前主力合约：T2506 / TF2506
+        for sym, name in [("T2506", "T合约收盘价"), ("TF2506", "TF合约收盘价")]:
+            try:
+                f_df = ak.futures_zh_daily_sina(symbol=sym)
+                if not f_df.empty:
+                    latest = f_df.iloc[-1]
+                    data.append({"dataType": "sentiment", "indicator": name,
+                                 "value": safe_float(latest['close']),
+                                 "unit": "元", "releaseDate": safe_date(latest['date']),
+                                 "source": "中金所"})
+                    data.append({"dataType": "sentiment", "indicator": name.replace("收盘价", "持仓量"),
+                                 "value": safe_float(latest.get('hold')),
+                                 "unit": "手", "releaseDate": safe_date(latest['date']),
+                                 "source": "中金所"})
+            except Exception:
+                pass
+    except Exception:
+        pass
 
-    # --- 5. 外部环境 (External) ---
+    # ─────────────────────────────────────────────
+    # E 外部环境 (External)
+    # 接口:
+    #   fx_spot_quote (实时, 可用 ✓) - 布伦特原油、美元指数、USD-CNH
+    #   futures_foreign_commodity_realtime OIL (实时, 可用 ✓) - 布伦特原油
+    #   bond_zh_us_rate - 东财超时，已移除
+    # ─────────────────────────────────────────────
     try:
-        # 美债与中美利差
-        uz = ak.bond_zh_us_rate()
-        if not uz.empty:
-            latest = uz.iloc[-1]; date = safe_date(latest['日期'])
-            u2 = safe_float(latest['美国国债收益率2年']); u10 = safe_float(latest['美国国债收益率10年']); c10 = safe_float(latest['中国国债收益率10年'])
-            data.append({"dataType": "external", "indicator": "美国2年债收益率", "value": u2, "unit": "%", "releaseDate": date, "source": "Treasury"})
-            data.append({"dataType": "external", "indicator": "美国10年债收益率", "value": u10, "unit": "%", "releaseDate": date, "source": "Treasury"})
-            if u10 and u2: data.append({"dataType": "external", "indicator": "美债10Y-2Y利差", "value": u10 - u2, "unit": "%", "releaseDate": date, "source": "Calculated"})
-            if c10 and u10: data.append({"dataType": "external", "indicator": "中美10Y利差", "value": c10 - u10, "unit": "%", "releaseDate": date, "source": "Calculated"})
-
-        # 美联储利率
-        fed = ak.macro_usa_federal_funds_rate()
-        if not fed.empty:
-            latest = fed.iloc[-1]
-            data.append({"dataType": "external", "indicator": "美联储基金利率", "value": safe_float(latest['利率']), "unit": "%", "releaseDate": safe_date(latest['日期']), "source": "FED"})
-
-        # 原油与汇率
         oil = ak.futures_foreign_commodity_realtime(symbol="OIL")
         if not oil.empty:
-            brent = oil[oil['名称'] == '布伦特原油']
+            brent = oil[oil['名称'].str.contains('布伦特', na=False)]
             if not brent.empty:
-                data.append({"dataType": "external", "indicator": "布伦特原油价格", "value": safe_float(brent.iloc[0]['最新价']), "unit": "美元/桶", "releaseDate": safe_date(brent.iloc[0]['日期']), "source": "GlobalFutures"})
+                row = brent.iloc[0]
+                data.append({"dataType": "external", "indicator": "布伦特原油价格",
+                             "value": safe_float(row['最新价']),
+                             "unit": "美元/桶",
+                             "releaseDate": safe_date(row.get('日期')) or today_str(),
+                             "source": "GlobalFutures"})
+    except Exception:
+        pass
 
+    try:
         fx = ak.fx_spot_quote()
         if not fx.empty:
-            usd_idx = fx[fx.iloc[:, 0].str.contains("美元指数", na=False)]
-            if not usd_idx.empty: data.append({"dataType": "external", "indicator": "美元指数", "value": safe_float(usd_idx.iloc[0, 2]), "unit": "点", "releaseDate": datetime.now().strftime('%Y-%m-%d'), "source": "FX"})
-            cnh = fx[fx.iloc[:, 0].str.contains("美元离岸人民币", na=False)]
-            if not cnh.empty: data.append({"dataType": "external", "indicator": "USD-CNH", "value": safe_float(cnh.iloc[0, 2]), "unit": "点", "releaseDate": datetime.now().strftime('%Y-%m-%d'), "source": "FX"})
+            # 美元指数
+            usd_idx = fx[fx['货币对'].str.contains('美元指数', na=False)]
+            if not usd_idx.empty:
+                data.append({"dataType": "external", "indicator": "美元指数",
+                             "value": safe_float(usd_idx.iloc[0]['卖报价']),
+                             "unit": "点", "releaseDate": today_str(), "source": "FX"})
+            # USD-CNH (离岸人民币)
+            cnh = fx[fx['货币对'].str.contains('美元.*人民币|CNH|CNY', na=False)]
+            if not cnh.empty:
+                data.append({"dataType": "external", "indicator": "USD-CNH",
+                             "value": safe_float(cnh.iloc[0]['卖报价']),
+                             "unit": "元", "releaseDate": today_str(), "source": "FX"})
+    except Exception:
+        pass
 
-        # VIX
-        vix = ak.index_vix()
-        if not vix.empty:
-            latest = vix.iloc[-1]
-            data.append({"dataType": "external", "indicator": "VIX恐慌指数", "value": safe_float(latest['收盘']), "unit": "点", "releaseDate": safe_date(latest['日期']), "source": "CBOE"})
-    except: pass
-
-    # 补全框架
-    # 修正：删除配置意愿类指标，确保 R007 改为 DR007
-    all_inds = [
-        ("macro", "制造业PMI"), ("macro", "CPI同比"), ("macro", "CPI环比"), ("macro", "PPI同比"), ("macro", "PPI环比"),
-        ("macro", "社会融资规模"), ("macro", "社融增速"), ("macro", "M2同比增速"), ("macro", "M1同比增速"),
-        ("macro", "企业中长期贷款新增"), ("macro", "居民中长期贷款新增"), ("macro", "短期贷款新增"), ("macro", "财政存款余额"), ("macro", "财政存款变化"),
-        ("liquidity", "逆回购投放规模"), ("liquidity", "逆回购利率(7D)"), ("liquidity", "DR001"), ("liquidity", "DR007"), ("liquidity", "DR014"), ("liquidity", "DR1M"), ("liquidity", "R-DR007利差"),
-        ("bond_market", "1年国债收益率"), ("bond_market", "5年国债收益率"), ("bond_market", "10年国债收益率"), ("bond_market", "30年国债收益率"), ("bond_market", "10Y-1Y利差"), ("bond_market", "30Y-10Y利差"), ("bond_market", "5Y-1Y利差"),
-        ("sentiment", "T合约持仓量"), ("sentiment", "F合约持仓量"),
-        ("external", "美国10年债收益率"), ("external", "美国2年债收益率"), ("external", "美债10Y-2Y利差"), ("external", "中美10Y利差"), ("external", "美联储基金利率"), ("external", "美元指数"), ("external", "USD-CNH"), ("external", "布伦特原油价格"), ("external", "VIX恐慌指数")
+    # ─────────────────────────────────────────────
+    # 补全框架：确保所有指标都有条目（无数据则 null）
+    # ─────────────────────────────────────────────
+    all_indicators = [
+        # F 基本面
+        ("macro", "制造业PMI", "%"),
+        ("macro", "CPI同比", "%"),
+        ("macro", "CPI环比", "%"),
+        ("macro", "PPI同比", "%"),
+        ("macro", "PPI环比", "%"),
+        ("macro", "M2同比增速", "%"),
+        ("macro", "M1同比增速", "%"),
+        ("macro", "社会融资规模", "亿元"),
+        ("macro", "社融增速", "%"),
+        ("macro", "企业中长期贷款新增", "亿元"),
+        ("macro", "居民中长期贷款新增", "亿元"),
+        ("macro", "短期贷款新增", "亿元"),
+        ("macro", "财政存款余额", "亿元"),
+        ("macro", "财政存款变化", "亿元"),
+        ("macro", "企业商品价格指数同比", "%"),
+        # L 流动性
+        ("liquidity", "DR001", "%"),
+        ("liquidity", "DR007", "%"),
+        ("liquidity", "DR014", "%"),
+        ("liquidity", "DR1M", "%"),
+        ("liquidity", "逆回购投放规模", "亿元"),
+        ("liquidity", "逆回购利率(7D)", "%"),
+        ("liquidity", "R-DR007利差", "%"),
+        ("liquidity", "1Y国债收益率(流动性参考)", "%"),
+        ("liquidity", "MLF余额", "亿元"),
+        # A 债券供需
+        ("bond_market", "3月国债收益率", "%"),
+        ("bond_market", "6月国债收益率", "%"),
+        ("bond_market", "1年国债收益率", "%"),
+        ("bond_market", "3年国债收益率", "%"),
+        ("bond_market", "5年国债收益率", "%"),
+        ("bond_market", "7年国债收益率", "%"),
+        ("bond_market", "10年国债收益率", "%"),
+        ("bond_market", "30年国债收益率", "%"),
+        ("bond_market", "10Y-1Y利差", "%"),
+        ("bond_market", "30Y-10Y利差", "%"),
+        ("bond_market", "5Y-1Y利差", "%"),
+        ("bond_market", "国债发行规模", "亿元"),
+        ("bond_market", "地方债发行规模", "亿元"),
+        # M 市场情绪
+        ("sentiment", "T合约收盘价", "元"),
+        ("sentiment", "T合约持仓量", "手"),
+        ("sentiment", "TF合约收盘价", "元"),
+        ("sentiment", "TF合约持仓量", "手"),
+        ("sentiment", "杠杆水平变化", "%"),
+        ("sentiment", "收益率止盈位", "%"),
+        # E 外部环境
+        ("external", "美国10年债收益率", "%"),
+        ("external", "美国2年债收益率", "%"),
+        ("external", "美债10Y-2Y利差", "%"),
+        ("external", "中美10Y利差", "%"),
+        ("external", "美联储基金利率", "%"),
+        ("external", "美元指数", "点"),
+        ("external", "USD-CNH", "元"),
+        ("external", "布伦特原油价格", "美元/桶"),
+        ("external", "VIX恐慌指数", "点"),
+        ("external", "CRB指数", "点"),
     ]
+
     existing = {(d['dataType'], d['indicator']) for d in data}
-    for dtype, ind in all_inds:
+    for dtype, ind, unit in all_indicators:
         if (dtype, ind) not in existing:
-            data.append({"dataType": dtype, "indicator": ind, "value": None, "unit": "-", "releaseDate": None, "source": "N/A"})
+            data.append({"dataType": dtype, "indicator": ind,
+                         "value": None, "unit": unit,
+                         "releaseDate": None, "source": "N/A"})
 
     return data
 
+
 if __name__ == '__main__':
-    # 强制设置 stdout 编码为 utf-8
-    import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    
     try:
-        # 仅输出 JSON 结果，不输出任何其他信息
         result = fetch_flame_data()
-        print(json.dumps(result, ensure_ascii=False))
+        print(json.dumps(result, ensure_ascii=False, default=str))
     except Exception as e:
-        # 错误信息输出到 stderr
-        error_info = {
-            "error": str(e),
-            "traceback": traceback.format_exc()
-        }
-        print(json.dumps(error_info, ensure_ascii=False), file=sys.stderr)
+        print(json.dumps({"error": str(e), "traceback": traceback.format_exc()},
+                         ensure_ascii=False), file=sys.stderr)
         sys.exit(1)
