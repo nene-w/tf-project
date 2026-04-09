@@ -230,7 +230,7 @@ export async function createFundamentalData(data: typeof fundamentalData.$inferI
       return await db
         .update(fundamentalData)
         .set({
-          value: data.value,
+          value: data.value ?? null, // 显式处理 null 值覆盖，确保空值能清除旧数字
           unit: data.unit,
           releaseDate: data.releaseDate,
           source: data.source,
