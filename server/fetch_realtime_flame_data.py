@@ -4,7 +4,7 @@
 - 优先使用日级别数据；无日级别则使用月级别
 - 只保留在当前环境经过测试可用的 AKShare 接口
 - 超时接口（东财/金十等）已移除，改为 null 兜底
-- 自动获取 T/TF 主力合约代码，避免硬编码
+- 自动获取 TL/T/TF 主力合约代码，并计算每日持仓变动量
 """
 import json
 import sys
@@ -68,7 +68,6 @@ def get_main_contract(symbol):
     except Exception:
         pass
     # 兜底逻辑：如果接口失败，返回当前可能的季度合约
-    # 2026年4月，主力通常是 2606 或 2609
     return f"{symbol}2606"
 
 
@@ -159,28 +158,43 @@ def fetch_flame_data():
         pass
 
     # ─────────────────────────────────────────────
-    # M 市场情绪 (Sentiment) - 自动切换主力合约
+    # M 市场情绪 (Sentiment) - 自动切换主力合约 & 计算持仓变动
     # ─────────────────────────────────────────────
     try:
-        # 动态获取 T 和 TF 的主力合约代码
+        # 动态获取 TL, T 和 TF 的主力合约代码
+        main_tl = get_main_contract("TL")
         main_t = get_main_contract("T")
         main_tf = get_main_contract("TF")
         
-        for sym, name in [(main_t, "T合约收盘价"), (main_tf, "TF合约收盘价")]:
+        for sym, name in [(main_tl, "TL合约"), (main_t, "T合约"), (main_tf, "TF合约")]:
             try:
                 f_df = ak.futures_zh_daily_sina(symbol=sym)
                 if not f_df.empty:
+                    # 获取最后两行数据以计算持仓变动
                     latest = f_df.iloc[-1]
-                    # 在指标名称中加入合约代码，方便用户确认
+                    prev = f_df.iloc[-2] if len(f_df) > 1 else None
+                    
                     display_name = f"{name}({sym})"
-                    data.append({"dataType": "sentiment", "indicator": display_name,
+                    # 收盘价
+                    data.append({"dataType": "sentiment", "indicator": f"{display_name}收盘价",
                                  "value": safe_float(latest['close']),
                                  "unit": "元", "releaseDate": safe_date(latest['date']),
                                  "source": "中金所"})
-                    data.append({"dataType": "sentiment", "indicator": display_name.replace("收盘价", "持仓量"),
-                                 "value": safe_float(latest.get('hold')),
+                    # 持仓量
+                    curr_hold = safe_float(latest.get('hold'))
+                    data.append({"dataType": "sentiment", "indicator": f"{display_name}持仓量",
+                                 "value": curr_hold,
                                  "unit": "手", "releaseDate": safe_date(latest['date']),
                                  "source": "中金所"})
+                    # 持仓变动量 (增仓/减仓)
+                    if prev is not None:
+                        prev_hold = safe_float(prev.get('hold'))
+                        if curr_hold is not None and prev_hold is not None:
+                            change = curr_hold - prev_hold
+                            data.append({"dataType": "sentiment", "indicator": f"{display_name}持仓变动",
+                                         "value": change,
+                                         "unit": "手", "releaseDate": safe_date(latest['date']),
+                                         "source": "中金所"})
             except Exception:
                 pass
     except Exception:
@@ -262,10 +276,16 @@ def fetch_flame_data():
         ("bond_market", "5Y-1Y利差", "%"),
         ("bond_market", "国债发行规模", "亿元"),
         ("bond_market", "地方债发行规模", "亿元"),
+        # M 市场情绪
+        ("sentiment", "TL合约收盘价", "元"),
+        ("sentiment", "TL合约持仓量", "手"),
+        ("sentiment", "TL合约持仓变动", "手"),
         ("sentiment", "T合约收盘价", "元"),
         ("sentiment", "T合约持仓量", "手"),
+        ("sentiment", "T合约持仓变动", "手"),
         ("sentiment", "TF合约收盘价", "元"),
         ("sentiment", "TF合约持仓量", "手"),
+        ("sentiment", "TF合约持仓变动", "手"),
         ("sentiment", "杠杆水平变化", "%"),
         ("sentiment", "收益率止盈位", "%"),
         ("external", "美国10年债收益率", "%"),
@@ -282,16 +302,16 @@ def fetch_flame_data():
 
     existing = {(d['dataType'], d['indicator']) for d in data}
     # 检查动态合约名称是否已存在
+    main_tl = get_main_contract("TL")
     main_t = get_main_contract("T")
     main_tf = get_main_contract("TF")
     
     for dtype, ind, unit in all_indicators:
         # 特殊处理动态合约名称
         check_ind = ind
-        if ind == "T合约收盘价": check_ind = f"T合约收盘价({main_t})"
-        if ind == "T合约持仓量": check_ind = f"T合约持仓量({main_t})"
-        if ind == "TF合约收盘价": check_ind = f"TF合约收盘价({main_tf})"
-        if ind == "TF合约持仓量": check_ind = f"TF合约持仓量({main_tf})"
+        if "TL合约" in ind: check_ind = ind.replace("TL合约", f"TL合约({main_tl})")
+        if "T合约" in ind and "TF" not in ind: check_ind = ind.replace("T合约", f"T合约({main_t})")
+        if "TF合约" in ind: check_ind = ind.replace("TF合约", f"TF合约({main_tf})")
         
         if (dtype, check_ind) not in existing:
             data.append({"dataType": dtype, "indicator": check_ind,
