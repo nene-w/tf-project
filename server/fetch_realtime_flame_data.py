@@ -4,6 +4,7 @@
 - 优先使用日级别数据；无日级别则使用月级别
 - 只保留在当前环境经过测试可用的 AKShare 接口
 - 超时接口（东财/金十等）已移除，改为 null 兜底
+- 自动获取 T/TF 主力合约代码，避免硬编码
 """
 import json
 import sys
@@ -55,6 +56,22 @@ def today_str():
     return datetime.now().strftime('%Y-%m-%d')
 
 
+def get_main_contract(symbol):
+    """
+    动态获取主力合约代码
+    """
+    try:
+        df = ak.futures_main_sina(symbol=symbol)
+        if not df.empty:
+            # 返回最新的一条主力合约代码
+            return df.iloc[-1]['main_code'].upper()
+    except Exception:
+        pass
+    # 兜底逻辑：如果接口失败，返回当前可能的季度合约
+    # 2026年4月，主力通常是 2606 或 2609
+    return f"{symbol}2606"
+
+
 def fetch_flame_data():
     data = []
     today = datetime.now().strftime('%Y%m%d')
@@ -62,12 +79,6 @@ def fetch_flame_data():
 
     # ─────────────────────────────────────────────
     # F 基本面 (Fundamentals)
-    # 接口: macro_china_money_supply (月级别, 可用)
-    #       macro_china_shrzgm (月级别, 可用)
-    #       macro_china_qyspjg (月级别, 可用, 用作 PPI 替代)
-    #       macro_china_lpr (月级别) - 东财超时，已移除
-    #       macro_china_pmi/cpi/ppi - 金十超时，已移除
-    #       macro_china_new_financial_credit - 东财超时，已移除
     # ─────────────────────────────────────────────
     try:
         ms = ak.macro_china_money_supply()
@@ -106,17 +117,7 @@ def fetch_flame_data():
         pass
 
     # ─────────────────────────────────────────────
-    # L 流动性 (Liquidity)
-    # 接口: bond_china_yield 中的 Shibor 替代 (日级别, 可用)
-    #       macro_bank_china_interest_rate - 金十超时，已移除
-    #       rate_interbank - 东财超时，已移除
-    # 用国债收益率短端（1Y）作为流动性参考
-    # ─────────────────────────────────────────────
-    # 流动性指标通过债券收益率曲线短端间接获取，见下方债券供需部分
-
-    # ─────────────────────────────────────────────
     # A 债券供需 (Bond Market)
-    # 接口: bond_china_yield (日级别, 可用 ✓)
     # ─────────────────────────────────────────────
     try:
         by = ak.bond_china_yield(start_date=last7, end_date=today)
@@ -158,21 +159,25 @@ def fetch_flame_data():
         pass
 
     # ─────────────────────────────────────────────
-    # M 市场情绪 (Sentiment)
-    # 接口: futures_zh_daily_sina (日级别, 可用 ✓)
+    # M 市场情绪 (Sentiment) - 自动切换主力合约
     # ─────────────────────────────────────────────
     try:
-        # 获取当前主力合约：T2506 / TF2506
-        for sym, name in [("T2506", "T合约收盘价"), ("TF2506", "TF合约收盘价")]:
+        # 动态获取 T 和 TF 的主力合约代码
+        main_t = get_main_contract("T")
+        main_tf = get_main_contract("TF")
+        
+        for sym, name in [(main_t, "T合约收盘价"), (main_tf, "TF合约收盘价")]:
             try:
                 f_df = ak.futures_zh_daily_sina(symbol=sym)
                 if not f_df.empty:
                     latest = f_df.iloc[-1]
-                    data.append({"dataType": "sentiment", "indicator": name,
+                    # 在指标名称中加入合约代码，方便用户确认
+                    display_name = f"{name}({sym})"
+                    data.append({"dataType": "sentiment", "indicator": display_name,
                                  "value": safe_float(latest['close']),
                                  "unit": "元", "releaseDate": safe_date(latest['date']),
                                  "source": "中金所"})
-                    data.append({"dataType": "sentiment", "indicator": name.replace("收盘价", "持仓量"),
+                    data.append({"dataType": "sentiment", "indicator": display_name.replace("收盘价", "持仓量"),
                                  "value": safe_float(latest.get('hold')),
                                  "unit": "手", "releaseDate": safe_date(latest['date']),
                                  "source": "中金所"})
@@ -183,10 +188,6 @@ def fetch_flame_data():
 
     # ─────────────────────────────────────────────
     # E 外部环境 (External)
-    # 接口:
-    #   fx_spot_quote (实时, 可用 ✓) - 布伦特原油、美元指数、USD-CNH
-    #   futures_foreign_commodity_realtime OIL (实时, 可用 ✓) - 布伦特原油
-    #   bond_zh_us_rate - 东财超时，已移除
     # ─────────────────────────────────────────────
     try:
         oil = ak.futures_foreign_commodity_realtime(symbol="OIL")
@@ -224,7 +225,6 @@ def fetch_flame_data():
     # 补全框架：确保所有指标都有条目（无数据则 null）
     # ─────────────────────────────────────────────
     all_indicators = [
-        # F 基本面
         ("macro", "制造业PMI", "%"),
         ("macro", "CPI同比", "%"),
         ("macro", "CPI环比", "%"),
@@ -240,7 +240,6 @@ def fetch_flame_data():
         ("macro", "财政存款余额", "亿元"),
         ("macro", "财政存款变化", "亿元"),
         ("macro", "企业商品价格指数同比", "%"),
-        # L 流动性
         ("liquidity", "DR001", "%"),
         ("liquidity", "DR007", "%"),
         ("liquidity", "DR014", "%"),
@@ -250,7 +249,6 @@ def fetch_flame_data():
         ("liquidity", "R-DR007利差", "%"),
         ("liquidity", "1Y国债收益率(流动性参考)", "%"),
         ("liquidity", "MLF余额", "亿元"),
-        # A 债券供需
         ("bond_market", "3月国债收益率", "%"),
         ("bond_market", "6月国债收益率", "%"),
         ("bond_market", "1年国债收益率", "%"),
@@ -264,14 +262,12 @@ def fetch_flame_data():
         ("bond_market", "5Y-1Y利差", "%"),
         ("bond_market", "国债发行规模", "亿元"),
         ("bond_market", "地方债发行规模", "亿元"),
-        # M 市场情绪
         ("sentiment", "T合约收盘价", "元"),
         ("sentiment", "T合约持仓量", "手"),
         ("sentiment", "TF合约收盘价", "元"),
         ("sentiment", "TF合约持仓量", "手"),
         ("sentiment", "杠杆水平变化", "%"),
         ("sentiment", "收益率止盈位", "%"),
-        # E 外部环境
         ("external", "美国10年债收益率", "%"),
         ("external", "美国2年债收益率", "%"),
         ("external", "美债10Y-2Y利差", "%"),
@@ -285,9 +281,20 @@ def fetch_flame_data():
     ]
 
     existing = {(d['dataType'], d['indicator']) for d in data}
+    # 检查动态合约名称是否已存在
+    main_t = get_main_contract("T")
+    main_tf = get_main_contract("TF")
+    
     for dtype, ind, unit in all_indicators:
-        if (dtype, ind) not in existing:
-            data.append({"dataType": dtype, "indicator": ind,
+        # 特殊处理动态合约名称
+        check_ind = ind
+        if ind == "T合约收盘价": check_ind = f"T合约收盘价({main_t})"
+        if ind == "T合约持仓量": check_ind = f"T合约持仓量({main_t})"
+        if ind == "TF合约收盘价": check_ind = f"TF合约收盘价({main_tf})"
+        if ind == "TF合约持仓量": check_ind = f"TF合约持仓量({main_tf})"
+        
+        if (dtype, check_ind) not in existing:
+            data.append({"dataType": dtype, "indicator": check_ind,
                          "value": None, "unit": unit,
                          "releaseDate": None, "source": "N/A"})
 
