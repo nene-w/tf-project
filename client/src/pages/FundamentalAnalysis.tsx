@@ -231,10 +231,18 @@ export default function FundamentalAnalysis() {
                       <p className="text-xs text-muted-foreground font-medium mb-1 line-clamp-1" title={data.indicator}>
                         {data.indicator}
                       </p>
-                      <p className="text-lg font-bold tracking-tight">
-                        {data.value}
-                        <span className="text-xs font-normal text-muted-foreground ml-1">{data.unit}</span>
-                      </p>
+                      <div className="flex items-baseline gap-1">
+                        {data.value !== null ? (
+                          <>
+                            <p className="text-lg font-bold tracking-tight">{data.value}</p>
+                            <span className="text-xs font-normal text-muted-foreground">{data.unit}</span>
+                          </>
+                        ) : (
+                          <Badge variant="outline" className="bg-muted/50 text-muted-foreground border-muted-foreground/20 font-normal text-[10px] py-0 px-1.5">
+                            暂无数据
+                          </Badge>
+                        )}
+                      </div>
                     </div>
                     <div className="text-right ml-4">
                       <p className="text-[9px] text-muted-foreground uppercase tracking-wider">Source</p>
