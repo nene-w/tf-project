@@ -1,4 +1,4 @@
-import { eq, desc, and, gte, lte } from "drizzle-orm";
+import { eq, desc, and, gte, lte, notLike } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import {
   InsertUser,
@@ -181,10 +181,24 @@ export async function getFundamentalData(
   try {
     let query = db
       .select()
-      .from(fundamentalData);
+      .from(fundamentalData)
+      .where(
+        and(
+          // 1. 强制日期过滤：只显示 2026 年及以后的数据
+          gte(fundamentalData.releaseDate, "2026-01-01"),
+          // 2. 强制指标过滤：排除所有包含“测试”字样的指标
+          notLike(fundamentalData.indicator, "%测试%")
+        )
+      );
 
     if (dataType) {
-      query = query.where(eq(fundamentalData.dataType, dataType)) as any;
+      query = query.where(
+        and(
+          eq(fundamentalData.dataType, dataType),
+          gte(fundamentalData.releaseDate, "2026-01-01"),
+          notLike(fundamentalData.indicator, "%测试%")
+        )
+      ) as any;
     }
 
     const allData = await query.orderBy(desc(fundamentalData.releaseDate));
