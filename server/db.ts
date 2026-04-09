@@ -179,29 +179,20 @@ export async function getFundamentalData(
   // 优化查询逻辑：对于每个 indicator，只返回 releaseDate 最新的那条记录
   // 这样可以从根本上解决“旧数据还在”的问题，即使数据库中有重复记录
   try {
-    let query = db
-      .select()
-      .from(fundamentalData)
-      .where(
-        and(
-          // 1. 强制日期过滤：只显示 2026 年及以后的数据
-          gte(fundamentalData.releaseDate, "2026-01-01"),
-          // 2. 强制指标过滤：排除所有包含“测试”字样的指标
-          notLike(fundamentalData.indicator, "%测试%")
-        )
-      );
-
+    // 构建过滤条件：日期过滤 + 排除测试指标 + 可选的 dataType 过滤
+    const conditions = [
+      gte(fundamentalData.releaseDate, new Date("2026-01-01")),
+      notLike(fundamentalData.indicator, "%测试%"),
+    ];
     if (dataType) {
-      query = query.where(
-        and(
-          eq(fundamentalData.dataType, dataType),
-          gte(fundamentalData.releaseDate, "2026-01-01"),
-          notLike(fundamentalData.indicator, "%测试%")
-        )
-      ) as any;
+      conditions.push(eq(fundamentalData.dataType, dataType) as any);
     }
 
-    const allData = await query.orderBy(desc(fundamentalData.releaseDate));
+    const allData = await db
+      .select()
+      .from(fundamentalData)
+      .where(and(...conditions))
+      .orderBy(desc(fundamentalData.releaseDate));
 
     // 在内存中进行去重，保留每个 indicator 的最新记录
     const latestMap = new Map<string, typeof fundamentalData.$inferSelect>();
