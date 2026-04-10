@@ -68,22 +68,16 @@ def get_flame_indicators_data():
     # 结构：{"indicator": "指标名称", "ifind_code": "iFinD证券代码", "ifind_field": "iFinD字段", "unit": "单位"}
     # 这里的 ifind_code 和 ifind_field 只是示例，需要根据实际情况查找和补充
     flame_indicators_config = [
-        # F 基本面 (Fundamentals)
-        {"indicator": "制造业PMI", "ifind_code": "M002043802", "ifind_field": "ths_pmi_manuf", "unit": "%"}, # 中国制造业PMI
-        {"indicator": "CPI同比", "ifind_code": "M000000001", "ifind_field": "ths_cpi_yoy", "unit": "%"}, # 中国CPI同比
-        {"indicator": "CPI环比", "ifind_code": "M000000001", "ifind_field": "ths_cpi_mom", "unit": "%"}, # 中国CPI环比
-        {"indicator": "PPI同比", "ifind_code": "M002826865", "ifind_field": "ths_ppi_yoy", "unit": "%"}, # 中国PPI同比
-        {"indicator": "PPI环比", "ifind_code": "M000000002", "ifind_field": "ths_ppi_mom", "unit": "%"}, # 中国PPI环比
-        {"indicator": "M2同比增速", "ifind_code": "M000000003", "ifind_field": "ths_macro_m2_yoy", "unit": "%"}, # 中国M2同比
-        {"indicator": "M1同比增速", "ifind_code": "M000000004", "ifind_field": "ths_macro_m1_yoy", "unit": "%"}, # 中国M1同比
-        {"indicator": "社会融资规模", "ifind_code": "M000000005", "ifind_field": "ths_macro_shrzgm_total", "unit": "亿元"}, # 社会融资规模增量
-        {"indicator": "社融增速", "ifind_code": "M000000005", "ifind_field": "ths_macro_shrzgm_yoy", "unit": "%"}, # 社会融资规模同比
-        {"indicator": "企业中长期贷款新增", "ifind_code": "M000000006", "ifind_field": "ths_macro_loan_corp_lt_new", "unit": "亿元"}, # 待确认
-        {"indicator": "居民中长期贷款新增", "ifind_code": "M000000007", "ifind_field": "ths_macro_loan_resi_lt_new", "unit": "亿元"}, # 待确认
-        {"indicator": "短期贷款新增", "ifind_code": "M000000008", "ifind_field": "ths_macro_loan_short_new", "unit": "亿元"}, # 待确认
-        {"indicator": "财政存款余额", "ifind_code": "M000000009", "ifind_field": "ths_macro_fiscal_deposit_balance", "unit": "亿元"}, # 待确认
-        {"indicator": "财政存款变化", "ifind_code": "M000000009", "ifind_field": "ths_macro_fiscal_deposit_change", "unit": "亿元"}, # 待确认
-        {"indicator": "企业商品价格指数同比", "ifind_code": "M000000010", "ifind_field": "ths_macro_corp_goods_price_yoy", "unit": "%"}, # 待确认
+        # F 基本面 (Fundamentals) - 已根据用户提供的信息更新
+        {"indicator": "制造业PMI", "ifind_code": "M002043802", "ifind_field": "ths_pmi_manuf", "unit": "%"},
+        {"indicator": "PPI:当月同比", "ifind_code": "M002826865", "ifind_field": "ths_ppi_yoy", "unit": "%"},
+        {"indicator": "PPI:环比", "ifind_code": "M002842661", "ifind_field": "ths_ppi_mom", "unit": "%"},
+        {"indicator": "CPI:当月同比", "ifind_code": "M002826730", "ifind_field": "ths_cpi_yoy", "unit": "%"},
+        {"indicator": "CPI:环比", "ifind_code": "M002826785", "ifind_field": "ths_cpi_mom", "unit": "%"},
+        {"indicator": "M1(货币):同比", "ifind_code": "M001625224", "ifind_field": "ths_macro_m1_yoy", "unit": "%"},
+        {"indicator": "M2(货币和准货币):同比", "ifind_code": "M001625222", "ifind_field": "ths_macro_m2_yoy", "unit": "%"},
+        {"indicator": "社会融资规模增量:当月值", "ifind_code": "M004891015", "ifind_field": "ths_macro_shrzgm_total", "unit": "亿元"},
+        {"indicator": "社会融资规模增量:当月同比", "ifind_code": "M037513681", "ifind_field": "ths_macro_shrzgm_yoy", "unit": "%"},
 
         # A 债券供需 (Bond Market)
         {"indicator": "3月国债收益率", "ifind_code": "CDB3M.IB", "ifind_field": "ths_bond_yield", "unit": "%"}, # 示例
