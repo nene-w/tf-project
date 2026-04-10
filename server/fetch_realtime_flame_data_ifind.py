@@ -94,16 +94,15 @@ def get_flame_indicators_data():
         {"indicator": "国债发行规模", "ifind_code": "M000000011", "ifind_field": "ths_bond_issue_gov", "unit": "亿元"}, # 示例
         {"indicator": "地方债发行规模", "ifind_code": "M000000012", "ifind_field": "ths_bond_issue_local", "unit": "亿元"}, # 示例
 
-        # L 流动性 (Liquidity)
-        {"indicator": "DR001", "ifind_code": "DR001.IB", "ifind_field": "ths_repo_rate", "unit": "%"}, # 示例
-        {"indicator": "DR007", "ifind_code": "DR007.IB", "ifind_field": "ths_repo_rate", "unit": "%"}, # 示例
-        {"indicator": "DR014", "ifind_code": "DR014.IB", "ifind_field": "ths_repo_rate", "unit": "%"}, # 示例
-        {"indicator": "DR1M", "ifind_code": "DR1M.IB", "ifind_field": "ths_repo_rate", "unit": "%"}, # 示例
-        {"indicator": "逆回购投放规模", "ifind_code": "M000000013", "ifind_field": "ths_pbc_reverse_repo_inject", "unit": "亿元"}, # 示例
-        {"indicator": "逆回购利率(7D)", "ifind_code": "M000000014", "ifind_field": "ths_pbc_reverse_repo_rate_7d", "unit": "%"}, # 示例
-        {"indicator": "R-DR007利差", "ifind_code": "M000000015", "ifind_field": "ths_repo_dr007_spread", "unit": "%"}, # 示例，可能需要计算
-        {"indicator": "1Y国债收益率(流动性参考)", "ifind_code": "CDB1Y.IB", "ifind_field": "ths_bond_yield", "unit": "%"}, # 示例
-        {"indicator": "MLF余额", "ifind_code": "M000000016", "ifind_field": "ths_pbc_mlf_balance", "unit": "亿元"}, # 示例
+        # L 流动性 (Liquidity) - 已根据用户提供的信息更新
+        {"indicator": "DR001", "ifind_code": "L001618739", "ifind_field": "ths_repo_rate", "unit": "%"},
+        {"indicator": "DR007", "ifind_code": "L001619493", "ifind_field": "ths_repo_rate", "unit": "%"},
+        {"indicator": "DR014", "ifind_code": "L001618740", "ifind_field": "ths_repo_rate", "unit": "%"},
+        {"indicator": "DR1M", "ifind_code": "L001619525", "ifind_field": "ths_repo_rate", "unit": "%"},
+        {"indicator": "货币投放量:逆回购", "ifind_code": "M003135208", "ifind_field": "ths_pbc_reverse_repo_inject", "unit": "亿元"},
+        {"indicator": "逆回购:7日:回购利率", "ifind_code": "L015211422", "ifind_field": "ths_pbc_reverse_repo_rate_7d", "unit": "%"},
+        {"indicator": "中期借贷便利(MLF):余额", "ifind_code": "M004026834", "ifind_field": "ths_pbc_mlf_balance", "unit": "亿元"},
+        {"indicator": "中期借贷便利(MLF):操作金额:合计", "ifind_code": "M004202865", "ifind_field": "ths_pbc_mlf_inject", "unit": "亿元"},
 
         # M 市场情绪 (Sentiment)
         {"indicator": "TL合约收盘价", "ifind_code": "TL.CFE", "ifind_field": "ths_future_close", "unit": "元"}, # 示例
