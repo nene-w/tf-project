@@ -117,17 +117,14 @@ def get_flame_indicators_data():
         {"indicator": "杠杆水平变化", "ifind_code": "M000000017", "ifind_field": "ths_margin_level_change", "unit": "%"}, # 示例
         {"indicator": "收益率止盈位", "ifind_code": "M000000018", "ifind_field": "ths_yield_take_profit", "unit": "%"}, # 示例
 
-        # E 外部环境 (External)
-        {"indicator": "美国10年债收益率", "ifind_code": "US10YT.WI", "ifind_field": "ths_bond_yield", "unit": "%"}, # 示例
-        {"indicator": "美国2年债收益率", "ifind_code": "US2YT.WI", "ifind_field": "ths_bond_yield", "unit": "%"}, # 示例
-        {"indicator": "美债10Y-2Y利差", "ifind_code": "US10YT.WI", "ifind_field": "ths_bond_yield_spread_10y_2y", "unit": "%"}, # 示例，可能需要计算
-        {"indicator": "中美10Y利差", "ifind_code": "CDB10Y.IB", "ifind_field": "ths_bond_yield_spread_cn_us_10y", "unit": "%"}, # 示例，可能需要计算
-        {"indicator": "美联储基金利率", "ifind_code": "FEDFUNDS.FRED", "ifind_field": "ths_fed_funds_rate", "unit": "%"}, # 示例
-        {"indicator": "美元指数", "ifind_code": "DXY.FX", "ifind_field": "ths_fx_index", "unit": "点"}, # 示例
-        {"indicator": "USD-CNH", "ifind_code": "USDCNH.FX", "ifind_field": "ths_fx_spot", "unit": "元"}, # 示例
-        {"indicator": "布伦特原油价格", "ifind_code": "ICE.BRENT", "ifind_field": "ths_commodity_price", "unit": "美元/桶"}, # 示例
-        {"indicator": "VIX恐慌指数", "ifind_code": "VIX.GI", "ifind_field": "ths_vix_index", "unit": "点"}, # 示例
-        {"indicator": "CRB指数", "ifind_code": "CRB.GI", "ifind_field": "ths_crb_index", "unit": "点"}, # 示例
+        # E 外部环境 (External) - 已根据用户提供的信息更新
+        {"indicator": "美国:国债收益率:10年", "ifind_code": "G002600774", "ifind_field": "ths_bond_yield", "unit": "%"},
+        {"indicator": "美国:国债收益率:2年", "ifind_code": "G002600770", "ifind_field": "ths_bond_yield", "unit": "%"},
+        {"indicator": "美国:联邦基金利率", "ifind_code": "G002600763", "ifind_field": "ths_fed_funds_rate", "unit": "%"},
+        {"indicator": "美国:美元指数", "ifind_code": "G002600885", "ifind_field": "ths_fx_index", "unit": "点"},
+        {"indicator": "布伦特原油价格", "ifind_code": "S002868651", "ifind_field": "ths_commodity_price", "unit": "美元/桶"},
+        {"indicator": "即期汇率(16:30):美元兑人民币", "ifind_code": "M004370159", "ifind_field": "ths_fx_spot", "unit": "元"},
+        {"indicator": "标准普尔500波动率指数(VIX)", "ifind_code": "G002601505", "ifind_field": "ths_vix_index", "unit": "点"},
     ]
 
     results = []
