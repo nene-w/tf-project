@@ -200,6 +200,10 @@ export async function getFundamentalData(
     if (dataType === "external" || dataType === "E") {
       // 逻辑已在内存去重部分实现
     }
+    // 如果是债券供需 (A) 维度，限定为用户指定的 6 个指标
+    if (dataType === "supply" || dataType === "A") {
+      // 逻辑已在内存去重部分实现
+    }
 
     const allData = await db
       .select()
@@ -221,6 +225,10 @@ export async function getFundamentalData(
       "美国_国债收益率_10年", "美国_国债收益率_2年", "美国_联邦基金利率",
       "美国_美元指数", "美国_其他指标", "人民币离岸价_USDCNH_收盘价"
     ];
+    const aIndicators = [
+      "中债国债到期收益率_30年", "中债国债到期收益率_10年", "中债国债到期收益率_2年",
+      "中债国债到期收益率_5年", "中债_债券发行量_国债_当月值", "中债_债券发行量_地方政府债_当月值"
+    ];
 
     for (const item of allData) {
       // 如果是基本面维度，只保留指定的指标
@@ -234,6 +242,10 @@ export async function getFundamentalData(
       // 如果是外部环境维度，只保留指定的指标
       if (item.dataType === "external" || item.dataType === "E") {
         if (!eIndicators.includes(item.indicator)) continue;
+      }
+      // 如果是债券供需维度，只保留指定的指标
+      if (item.dataType === "supply" || item.dataType === "A") {
+        if (!aIndicators.includes(item.indicator)) continue;
       }
 
       const key = `${item.dataType}:${item.indicator}`;

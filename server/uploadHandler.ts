@@ -67,6 +67,14 @@ export async function handleUpload(req: Request, res: Response) {
         dataType = "external"; // 统一映射为 external 分类，对应 FLAME 中的 E 维度
       }
 
+      const aIndicators = [
+        "中债国债到期收益率_30年", "中债国债到期收益率_10年", "中债国债到期收益率_2年",
+        "中债国债到期收益率_5年", "中债_债券发行量_国债_当月值", "中债_债券发行量_地方政府债_当月值"
+      ];
+      if (aIndicators.includes(String(indicator))) {
+        dataType = "supply"; // 统一映射为 supply 分类，对应 FLAME 中的 A 维度
+      }
+
       await createFundamentalData({
         indicator: String(indicator),
         value: value !== null ? String(value) : null,
