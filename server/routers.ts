@@ -285,43 +285,24 @@ E：外部环境（美联储、中美利差、汇率）
       .query(async ({ input, ctx }) => {
         return await getFundamentalData(input.dataType, input.limit, input.offset);
       }),
-
     refresh: protectedProcedure
       .mutation(async ({ ctx }) => {
         try {
-          const { fetchFLAMEData } = await import('./fetch_flame_data_wrapper');
-          const flameData = await fetchFLAMEData();
-          
-          // 存储数据到数据库
-          let savedCount = 0;
-          for (const item of flameData) {
-            try {
-              await createFundamentalData({
-                dataType: item.dataType,
-                indicator: item.indicator,
-                value: String(item.value),
-                unit: item.unit,
-                releaseDate: item.releaseDate ? new Date(item.releaseDate) : new Date(),
-                source: item.source,
-                description: item.description,
-              });
-              savedCount++;
-            } catch (error) {
-              console.error('[FundamentalData] Error saving data:', error);
-            }
-          }
+          // 由于已禁用在线抓取，现在的“刷新”逻辑改为从数据库中重新加载最新的本地推送数据
+          // 这样前端点击刷新时，会显示当前数据库中已有的最新指标数量
+          const latestData = await getFundamentalData(undefined, 100);
           
           return {
             success: true,
-            dataCount: flameData.length,
-            savedCount,
-            message: `成功获取 ${flameData.length} 条数据，保存 ${savedCount} 条到数据库`
+            newCount: latestData.length,
+            savedCount: latestData.length,
+            message: "已从数据库加载最新的本地推送数据"
           };
         } catch (error) {
-          console.error('[FundamentalData] Error refreshing FLAME data:', error);
+          console.error('[FundamentalData] Error refreshing data:', error);
           return {
             success: false,
-            dataCount: 0,
+            newCount: 0,
             savedCount: 0,
             message: '数据刷新失败，请稍后重试'
           };
