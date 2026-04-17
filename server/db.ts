@@ -190,20 +190,11 @@ export async function getFundamentalData(
 
     // 如果是基本面 (F) 维度，限定为用户指定的 9 个指标
     if (dataType === "macro" || dataType === "fundamental" || dataType === "F") {
-      const fIndicators = [
-        "PPI_环比",
-        "PMI",
-        "PPI_当月同比",
-        "CPI_当月同比",
-        "CPI_环比",
-        "M1_同比",
-        "M2_同比",
-        "社会融资规模增量_当月值",
-        "社会融资规模增量_当月同比"
-      ];
-      // 注意：这里使用 inArray 需要从 drizzle-orm 导入，或者手动构建 or 条件
-      // 为了简单起见，我们直接在内存中过滤，或者在 SQL 中使用 inArray
-      // 这里先保持 SQL 查询，稍后在内存去重逻辑中确保只包含这些指标
+      // 逻辑已在内存去重部分实现
+    }
+    // 如果是流动性 (L) 维度，限定为用户指定的 8 个指标
+    if (dataType === "liquidity" || dataType === "L") {
+      // 逻辑已在内存去重部分实现
     }
 
     const allData = await db
@@ -218,11 +209,19 @@ export async function getFundamentalData(
       "PPI_环比", "PMI", "PPI_当月同比", "CPI_当月同比", "CPI_环比",
       "M1_同比", "M2_同比", "社会融资规模增量_当月值", "社会融资规模增量_当月同比"
     ];
+    const lIndicators = [
+      "DR001", "DR007", "DR014", "DR1M", "货币投放量_逆回购",
+      "逆回购_7日_回购利率", "中期借贷便利_MLF_余额", "中期借贷便利_MLF_操作金额_合计"
+    ];
 
     for (const item of allData) {
       // 如果是基本面维度，只保留指定的指标
       if (item.dataType === "macro" || item.dataType === "fundamental" || item.dataType === "F") {
         if (!fIndicators.includes(item.indicator)) continue;
+      }
+      // 如果是流动性维度，只保留指定的指标
+      if (item.dataType === "liquidity" || item.dataType === "L") {
+        if (!lIndicators.includes(item.indicator)) continue;
       }
 
       const key = `${item.dataType}:${item.indicator}`;

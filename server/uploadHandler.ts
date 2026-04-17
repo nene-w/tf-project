@@ -51,6 +51,14 @@ export async function handleUpload(req: Request, res: Response) {
         dataType = "macro"; // 统一映射为 macro 分类，对应 FLAME 中的 F 维度
       }
 
+      const lIndicators = [
+        "DR001", "DR007", "DR014", "DR1M", "货币投放量_逆回购",
+        "逆回购_7日_回购利率", "中期借贷便利_MLF_余额", "中期借贷便利_MLF_操作金额_合计"
+      ];
+      if (lIndicators.includes(String(indicator))) {
+        dataType = "liquidity"; // 统一映射为 liquidity 分类，对应 FLAME 中的 L 维度
+      }
+
       await createFundamentalData({
         indicator: String(indicator),
         value: value !== null ? String(value) : null,
