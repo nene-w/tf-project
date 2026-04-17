@@ -273,7 +273,18 @@ export async function getFundamentalData(
         .sort((a, b) => (b.id || 0) - (a.id || 0))[0];
       
       if (latestItem) {
-        latestMap.set(key, latestItem);
+        // 强制二次验证：如果不是我们指定的指标，即使在数据库里也不返回
+        const indicator = latestItem.indicator;
+        const allAllowedIndicators = [
+          ...fIndicators, ...lIndicators, ...eIndicators, ...aIndicators
+        ];
+        
+        const isSentiment = latestItem.dataType === "sentiment" || latestItem.dataType === "M";
+        const isAllowed = allAllowedIndicators.includes(indicator) || (isSentiment && indicator.toLowerCase().startsWith("futures"));
+        
+        if (isAllowed) {
+          latestMap.set(key, latestItem);
+        }
       }
     }
 
