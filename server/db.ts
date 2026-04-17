@@ -176,83 +176,36 @@ export async function getFundamentalData(
   const db = await getDb();
   if (!db) return [];
 
-  // 优化查询逻辑：对于每个 indicator，只返回 releaseDate 最新的那条记录
-  // 这样可以从根本上解决“旧数据还在”的问题，即使数据库中有重复记录
   try {
-    // 构建过滤条件：日期过滤 + 排除测试指标 + 可选的 dataType 过滤
+    // 核心逻辑修改：只查询来源为 "LocalPush" 的数据，彻底隔离旧的 AKShare 数据
     const conditions = [
-      
-      notLike(fundamentalData.indicator, "%测试%"),
+      eq(fundamentalData.source, "LocalPush")
     ];
-    if (dataType) {
-      conditions.push(eq(fundamentalData.dataType, dataType) as any);
-    }
+    
+    // 映射前端传来的分类名称到数据库分类
+    let targetDataType = dataType;
+    if (dataType === "F") targetDataType = "macro";
+    if (dataType === "L") targetDataType = "liquidity";
+    if (dataType === "A") targetDataType = "supply";
+    if (dataType === "M") targetDataType = "sentiment";
+    if (dataType === "E") targetDataType = "external";
 
-    // 如果是基本面 (F) 维度，限定为用户指定的 9 个指标
-    if (dataType === "macro" || dataType === "fundamental" || dataType === "F") {
-      // 逻辑已在内存去重部分实现
-    }
-    // 如果是流动性 (L) 维度，限定为用户指定的 8 个指标
-    if (dataType === "liquidity" || dataType === "L") {
-      // 逻辑已在内存去重部分实现
-    }
-    // 如果是外部环境 (E) 维度，限定为用户指定的 5 个指标
-    if (dataType === "external" || dataType === "E") {
-      // 逻辑已在内存去重部分实现
-    }
-    // 如果是债券供需 (A) 维度，限定为用户指定的 6 个指标
-    if (dataType === "supply" || dataType === "A") {
-      // 逻辑已在内存去重部分实现
-    }
-    // 如果是市场情绪 (M) 维度，限定为 futures 开头的指标
-    if (dataType === "sentiment" || dataType === "M") {
-      // 逻辑已在内存去重部分实现
+    if (targetDataType && targetDataType !== "all") {
+      conditions.push(eq(fundamentalData.dataType, targetDataType));
     }
 
     const allData = await db
       .select()
       .from(fundamentalData)
-      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .where(and(...conditions))
       .orderBy(desc(fundamentalData.releaseDate));
 
-    // 在内存中进行去重，保留每个 indicator 的最新记录
+    // 按指标名称分组，只保留每个指标最新日期的数据
     const latestMap = new Map<string, typeof fundamentalData.$inferSelect>();
-    const fIndicators = [
-      "PPI_环比", "PMI", "PPI_当月同比", "CPI_当月同比", "CPI_环比",
-      "M1_同比", "M2_同比", "社会融资规模增量_当月值", "社会融资规模增量_当月同比",
-      "金融机构_人民币贷款_当月增加_住户_中长期", "金融机构_人民币贷款_当月增加_企事业单位_中长期贷款",
-      "金融机构_人民币贷款_当月增加_中长期贷款", "金融机构_人民币贷款_当月增加_短期贷款",
-      "金融机构_人民币贷款_当月增加_住户", "金融机构_人民币贷款_当月增加_企事业单位"
-    ];
-    const lIndicators = [
-      "DR001", "DR007", "DR014", "DR1M", "货币投放量_逆回购",
-      "逆回购_7日_回购利率", "中期借贷便利_MLF_余额", "中期借贷便利_MLF_操作金额_合计"
-    ];
-    const eIndicators = [
-      "美国_国债收益率_10年", "美国_国债收益率_2年", "美国_联邦基金利率",
-      "美国_美元指数", "美国_其他指标", "人民币离岸价_USDCNH_收盘价"
-    ];
-    const aIndicators = [
-      "中债国债到期收益率_30年", "中债国债到期收益率_10年", "中债国债到期收益率_2年",
-      "中债国债到期收益率_5年", "中债_债券发行量_国债_当月值", "中债_债券发行量_地方政府债_当月值"
-    ];
-
-    // 首先按指标分组，找到每个指标的最大日期
+    
+    // 首先找到每个指标的最大日期
     const indicatorGroups = new Map<string, typeof fundamentalData.$inferSelect[]>();
     for (const item of allData) {
-      // 维度过滤逻辑
-      if (item.dataType === "macro" || item.dataType === "fundamental" || item.dataType === "F") {
-        if (!fIndicators.includes(item.indicator)) continue;
-      } else if (item.dataType === "liquidity" || item.dataType === "L") {
-        if (!lIndicators.includes(item.indicator)) continue;
-      } else if (item.dataType === "external" || item.dataType === "E") {
-        if (!eIndicators.includes(item.indicator)) continue;
-      } else if (item.dataType === "supply" || item.dataType === "A") {
-        if (!aIndicators.includes(item.indicator)) continue;
-      } else if (item.dataType === "sentiment" || item.dataType === "M") {
-        if (!item.indicator.toLowerCase().startsWith("futures")) continue;
-      }
-
       const key = `${item.dataType}:${item.indicator}`;
       if (!indicatorGroups.has(key)) {
         indicatorGroups.set(key, []);
@@ -260,31 +213,18 @@ export async function getFundamentalData(
       indicatorGroups.get(key)!.push(item);
     }
 
-    // 对每个指标组，只保留日期最新的记录
+    // 对每个指标组，只保留日期最新的记录，原样展示名称
     for (const [key, items] of indicatorGroups.entries()) {
       if (items.length === 0) continue;
       
-      // 找到该指标组中的最新日期
       const maxDate = new Date(Math.max(...items.map(i => i.releaseDate?.getTime() || 0)));
       
-      // 只保留日期等于最新日期的那条记录（如果有多个同日期的，取 id 最大的或 createdAt 最新的）
       const latestItem = items
         .filter(i => i.releaseDate?.getTime() === maxDate.getTime())
         .sort((a, b) => (b.id || 0) - (a.id || 0))[0];
       
       if (latestItem) {
-        // 强制二次验证：如果不是我们指定的指标，即使在数据库里也不返回
-        const indicator = latestItem.indicator;
-        const allAllowedIndicators = [
-          ...fIndicators, ...lIndicators, ...eIndicators, ...aIndicators
-        ];
-        
-        const isSentiment = latestItem.dataType === "sentiment" || latestItem.dataType === "M";
-        const isAllowed = allAllowedIndicators.includes(indicator) || (isSentiment && indicator.toLowerCase().startsWith("futures"));
-        
-        if (isAllowed) {
-          latestMap.set(key, latestItem);
-        }
+        latestMap.set(key, latestItem);
       }
     }
 
@@ -300,36 +240,32 @@ export async function createFundamentalData(data: typeof fundamentalData.$inferI
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  // 使用 upsert 逻辑：根据 indicator 和 dataType 唯一标识一个指标，如果已存在则更新，不存在则插入
-  // 注意：这里假设数据库中 indicator 和 dataType 的组合是唯一的，或者我们手动处理覆盖逻辑
   try {
-    // 先尝试查找是否已存在该指标
+    // 根据 indicator, dataType 和 source 唯一标识一个指标
     const existing = await db
       .select()
       .from(fundamentalData)
       .where(
         and(
           eq(fundamentalData.indicator, data.indicator),
-          eq(fundamentalData.dataType, data.dataType)
+          eq(fundamentalData.dataType, data.dataType),
+          eq(fundamentalData.source, data.source || "LocalPush")
         )
       )
       .limit(1);
 
     if (existing.length > 0) {
-      // 如果存在，则更新
       return await db
         .update(fundamentalData)
         .set({
-          value: data.value ?? null, // 显式处理 null 值覆盖，确保空值能清除旧数字
+          value: data.value ?? null,
           unit: data.unit,
           releaseDate: data.releaseDate,
-          source: data.source,
           description: data.description,
           updatedAt: new Date(),
         })
         .where(eq(fundamentalData.id, existing[0].id));
     } else {
-      // 如果不存在，则插入
       return await db.insert(fundamentalData).values(data);
     }
   } catch (error) {
@@ -339,14 +275,14 @@ export async function createFundamentalData(data: typeof fundamentalData.$inferI
 }
 
 // ============ External Views ============
-export async function getExternalViews(limit = 30, offset = 0) {
+export async function getExternalViews(limit = 20, offset = 0) {
   const db = await getDb();
   if (!db) return [];
 
   return await db
     .select()
     .from(externalViews)
-    .orderBy(desc(externalViews.publishDate))
+    .orderBy(desc(externalViews.createdAt))
     .limit(limit)
     .offset(offset);
 }
@@ -355,78 +291,29 @@ export async function createExternalView(view: typeof externalViews.$inferInsert
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  // Insert the view
-  await db.insert(externalViews).values(view);
-  
-  // Fetch and return the most recently inserted record for this view
-  const insertedView = await db
-    .select()
-    .from(externalViews)
-    .where(eq(externalViews.title, view.title || ""))
-    .orderBy(desc(externalViews.id))
-    .limit(1);
-  
-  return insertedView[0];
+  return await db.insert(externalViews).values(view);
 }
 
 // ============ View Conclusions ============
-export async function getViewConclusions(userId: number, limit = 10, offset = 0) {
+export async function getViewConclusions(viewId: number) {
   const db = await getDb();
   if (!db) return [];
 
   return await db
     .select()
     .from(viewConclusions)
-    .where(eq(viewConclusions.userId, userId))
-    .orderBy(desc(viewConclusions.createdAt))
-    .limit(limit)
-    .offset(offset);
+    .where(eq(viewConclusions.viewId, viewId));
 }
 
-export async function createViewConclusion(
-  conclusion: typeof viewConclusions.$inferInsert
-) {
+export async function createViewConclusion(conclusion: typeof viewConclusions.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
   return await db.insert(viewConclusions).values(conclusion);
 }
 
-export async function getWeeklyViews(userId: number, days = 7) {
-  const db = await getDb();
-  if (!db) return [];
-
-  const startDate = new Date();
-  startDate.setDate(startDate.getDate() - days);
-
-  return await db
-    .select()
-    .from(externalViews)
-    .where(gte(externalViews.createdAt, startDate))
-    .orderBy(desc(externalViews.createdAt));
-}
-
-export async function createWeeklyFlameReport(report: typeof weeklyFlameReports.$inferInsert) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-
-  return await db.insert(weeklyFlameReports).values(report);
-}
-
-export async function getWeeklyFlameReports(userId: number, limit = 10) {
-  const db = await getDb();
-  if (!db) return [];
-
-  return await db
-    .select()
-    .from(weeklyFlameReports)
-    .where(eq(weeklyFlameReports.userId, userId))
-    .orderBy(desc(weeklyFlameReports.createdAt))
-    .limit(limit);
-}
-
 // ============ Trade Records ============
-export async function getTradeRecords(userId: number, limit = 20, offset = 0) {
+export async function getTradeRecords(userId: number, limit = 50, offset = 0) {
   const db = await getDb();
   if (!db) return [];
 
@@ -434,25 +321,9 @@ export async function getTradeRecords(userId: number, limit = 20, offset = 0) {
     .select()
     .from(tradeRecords)
     .where(eq(tradeRecords.userId, userId))
-    .orderBy(desc(tradeRecords.entryTime))
+    .orderBy(desc(tradeRecords.tradeDate))
     .limit(limit)
     .offset(offset);
-}
-
-export async function getOpenTrades(userId: number) {
-  const db = await getDb();
-  if (!db) return [];
-
-  return await db
-    .select()
-    .from(tradeRecords)
-    .where(
-      and(
-        eq(tradeRecords.userId, userId),
-        eq(tradeRecords.status, "open")
-      )
-    )
-    .orderBy(desc(tradeRecords.entryTime));
 }
 
 export async function createTradeRecord(record: typeof tradeRecords.$inferInsert) {
@@ -462,41 +333,15 @@ export async function createTradeRecord(record: typeof tradeRecords.$inferInsert
   return await db.insert(tradeRecords).values(record);
 }
 
-export async function updateTradeRecord(
-  id: number,
-  updates: Partial<typeof tradeRecords.$inferInsert>
-) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-
-  return await db.update(tradeRecords).set(updates).where(eq(tradeRecords.id, id));
-}
-
 // ============ Trade Reviews ============
-export async function getTradeReviews(userId: number, limit = 20, offset = 0) {
+export async function getTradeReviews(recordId: number) {
   const db = await getDb();
   if (!db) return [];
 
   return await db
     .select()
     .from(tradeReviews)
-    .where(eq(tradeReviews.userId, userId))
-    .orderBy(desc(tradeReviews.createdAt))
-    .limit(limit)
-    .offset(offset);
-}
-
-export async function getTradeReviewByTradeId(tradeId: number) {
-  const db = await getDb();
-  if (!db) return null;
-
-  const result = await db
-    .select()
-    .from(tradeReviews)
-    .where(eq(tradeReviews.tradeId, tradeId))
-    .limit(1);
-
-  return result.length > 0 ? result[0] : null;
+    .where(eq(tradeReviews.recordId, recordId));
 }
 
 export async function createTradeReview(review: typeof tradeReviews.$inferInsert) {
@@ -506,20 +351,10 @@ export async function createTradeReview(review: typeof tradeReviews.$inferInsert
   return await db.insert(tradeReviews).values(review);
 }
 
-export async function updateTradeReview(
-  id: number,
-  updates: Partial<typeof tradeReviews.$inferInsert>
-) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-
-  return await db.update(tradeReviews).set(updates).where(eq(tradeReviews.id, id));
-}
-
-// ============ Dashboard Config ============
+// ============ Dashboard Configs ============
 export async function getDashboardConfig(userId: number) {
   const db = await getDb();
-  if (!db) return null;
+  if (!db) return undefined;
 
   const result = await db
     .select()
@@ -527,70 +362,52 @@ export async function getDashboardConfig(userId: number) {
     .where(eq(dashboardConfigs.userId, userId))
     .limit(1);
 
-  return result.length > 0 ? result[0] : null;
+  return result.length > 0 ? result[0] : undefined;
 }
 
-export async function createOrUpdateDashboardConfig(
-  config: typeof dashboardConfigs.$inferInsert
-) {
+export async function upsertDashboardConfig(config: typeof dashboardConfigs.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  return await db
-    .insert(dashboardConfigs)
-    .values(config)
-    .onDuplicateKeyUpdate({
-      set: {
+  const existing = await getDashboardConfig(config.userId!);
+  if (existing) {
+    return await db
+      .update(dashboardConfigs)
+      .set({
         layout: config.layout,
-        widgets: config.widgets,
-        defaultTimeRange: config.defaultTimeRange,
-        showRiskWarning: config.showRiskWarning,
-      },
-    });
-}
-
-// ============ Statistics ============
-export async function getTradeStatistics(userId: number) {
-  const db = await getDb();
-  if (!db) return null;
-
-  const trades = await db
-    .select()
-    .from(tradeRecords)
-    .where(
-      and(
-        eq(tradeRecords.userId, userId),
-        eq(tradeRecords.status, "closed")
-      )
-    );
-
-  if (trades.length === 0) {
-    return {
-      totalTrades: 0,
-      winRate: 0,
-      totalProfitLoss: 0,
-      averageProfitLoss: 0,
-    };
+        visibleWidgets: config.visibleWidgets,
+        updatedAt: new Date(),
+      })
+      .where(eq(dashboardConfigs.id, existing.id));
+  } else {
+    return await db.insert(dashboardConfigs).values(config);
   }
-
-  const winCount = trades.filter((t) => t.profitLoss && Number(t.profitLoss) > 0).length;
-  const totalPL = trades.reduce((sum, t) => {
-    const pl = t.profitLoss ? Number(t.profitLoss) : 0;
-    return sum + pl;
-  }, 0);
-
-  return {
-    totalTrades: trades.length,
-    winRate: Math.round((winCount / trades.length) * 100),
-    totalProfitLoss: totalPL,
-    averageProfitLoss: totalPL / trades.length,
-  };
 }
 
-// ============ TQ Config ============
+// ============ Weekly Flame Reports ============
+export async function getWeeklyFlameReports(limit = 10, offset = 0) {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db
+    .select()
+    .from(weeklyFlameReports)
+    .orderBy(desc(weeklyFlameReports.reportDate))
+    .limit(limit)
+    .offset(offset);
+}
+
+export async function createWeeklyFlameReport(report: typeof weeklyFlameReports.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  return await db.insert(weeklyFlameReports).values(report);
+}
+
+// ============ TQ Configs ============
 export async function getTqConfig(userId: number) {
   const db = await getDb();
-  if (!db) return null;
+  if (!db) return undefined;
 
   const result = await db
     .select()
@@ -598,74 +415,38 @@ export async function getTqConfig(userId: number) {
     .where(eq(tqConfigs.userId, userId))
     .limit(1);
 
-  return result.length > 0 ? result[0] : null;
+  return result.length > 0 ? result[0] : undefined;
 }
 
-export async function createOrUpdateTqConfig(config: typeof tqConfigs.$inferInsert) {
+export async function upsertTqConfig(config: typeof tqConfigs.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  // Check if config already exists
-  const existing = await db
-    .select()
-    .from(tqConfigs)
-    .where(eq(tqConfigs.userId, config.userId!))
-    .limit(1);
-
-  if (existing.length > 0) {
-    // Update existing
+  const existing = await getTqConfig(config.userId!);
+  if (existing) {
     return await db
       .update(tqConfigs)
       .set({
-        tqUsername: config.tqUsername,
+        tqAccount: config.tqAccount,
         tqPassword: config.tqPassword,
-        subscribedContracts: config.subscribedContracts,
-        klinePeriod: config.klinePeriod,
-        isEnabled: config.isEnabled,
         updatedAt: new Date(),
       })
-      .where(eq(tqConfigs.userId, config.userId!));
+      .where(eq(tqConfigs.id, existing.id));
   } else {
-    // Insert new
     return await db.insert(tqConfigs).values(config);
   }
 }
 
 // ============ Indicators ============
-export async function getIndicators(userId: number) {
+export async function getIndicators() {
   const db = await getDb();
   if (!db) return [];
 
-  return await db
-    .select()
-    .from(indicators)
-    .where(eq(indicators.userId, userId))
-    .orderBy(desc(indicators.createdAt));
-}
-
-export async function createIndicator(indicator: typeof indicators.$inferInsert) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-
-  return await db.insert(indicators).values(indicator);
-}
-
-export async function updateIndicator(id: number, updates: Partial<typeof indicators.$inferInsert>) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-
-  return await db.update(indicators).set(updates).where(eq(indicators.id, id));
-}
-
-export async function deleteIndicator(id: number) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-
-  return await db.delete(indicators).where(eq(indicators.id, id));
+  return await db.select().from(indicators);
 }
 
 // ============ Signal Records ============
-export async function getSignalRecords(userId: number, limit = 50) {
+export async function getSignalRecords(userId: number, limit = 50, offset = 0) {
   const db = await getDb();
   if (!db) return [];
 
@@ -673,8 +454,9 @@ export async function getSignalRecords(userId: number, limit = 50) {
     .select()
     .from(signalRecords)
     .where(eq(signalRecords.userId, userId))
-    .orderBy(desc(signalRecords.triggeredAt))
-    .limit(limit);
+    .orderBy(desc(signalRecords.createdAt))
+    .limit(limit)
+    .offset(offset);
 }
 
 export async function createSignalRecord(record: typeof signalRecords.$inferInsert) {
@@ -684,10 +466,10 @@ export async function createSignalRecord(record: typeof signalRecords.$inferInse
   return await db.insert(signalRecords).values(record);
 }
 
-// ============ Email Config ============
+// ============ Email Configs ============
 export async function getEmailConfig(userId: number) {
   const db = await getDb();
-  if (!db) return null;
+  if (!db) return undefined;
 
   const result = await db
     .select()
@@ -695,124 +477,114 @@ export async function getEmailConfig(userId: number) {
     .where(eq(emailConfigs.userId, userId))
     .limit(1);
 
-  return result.length > 0 ? result[0] : null;
+  return result.length > 0 ? result[0] : undefined;
 }
 
-export async function createOrUpdateEmailConfig(config: typeof emailConfigs.$inferInsert) {
+export async function upsertEmailConfig(config: typeof emailConfigs.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  return await db
-    .insert(emailConfigs)
-    .values(config)
-    .onDuplicateKeyUpdate({
-      set: {
-        smtpHost: config.smtpHost,
-        smtpPort: config.smtpPort,
-        smtpSecure: config.smtpSecure,
-        smtpUser: config.smtpUser,
-        smtpPassword: config.smtpPassword,
-        fromEmail: config.fromEmail,
-        toEmails: config.toEmails,
-        isEnabled: config.isEnabled,
-        cooldownMinutes: config.cooldownMinutes,
-      },
-    });
-}
-
-// ============ Kline Cache ============
-export async function getKlineCache(contract: string, period: number, limit = 1000) {
-  const db = await getDb();
-  if (!db) return [];
-
-  return await db
-    .select()
-    .from(klineCache)
-    .where(and(eq(klineCache.contract, contract), eq(klineCache.period, period)))
-    .orderBy(desc(klineCache.datetime))
-    .limit(limit);  // 支持更多历史数据
-}
-
-export async function upsertKlineCache(bars: (typeof klineCache.$inferInsert)[]) {
-  const db = await getDb();
-  if (!db) return;
-
-  for (const bar of bars) {
-    await db.insert(klineCache).values(bar).onDuplicateKeyUpdate({
-      set: {
-        open: bar.open,
-        high: bar.high,
-        low: bar.low,
-        close: bar.close,
-        volume: bar.volume,
-        openInterest: bar.openInterest,
-      },
-    });
+  const existing = await getEmailConfig(config.userId!);
+  if (existing) {
+    return await db
+      .update(emailConfigs)
+      .set({
+        email: config.email,
+        password: config.password,
+        imapServer: config.imapServer,
+        imapPort: config.imapPort,
+        updatedAt: new Date(),
+      })
+      .where(eq(emailConfigs.id, existing.id));
+  } else {
+    return await db.insert(emailConfigs).values(config);
   }
 }
 
-/// ============ AI Analyst Config ============
+// ============ Kline Cache ============
+export async function getKlineCache(symbol: string, duration: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db
+    .select()
+    .from(klineCache)
+    .where(and(eq(klineCache.symbol, symbol), eq(klineCache.duration, duration)))
+    .limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function upsertKlineCache(cache: typeof klineCache.$inferInsert) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const existing = await getKlineCache(cache.symbol!, cache.duration!);
+  if (existing) {
+    return await db
+      .update(klineCache)
+      .set({
+        data: cache.data,
+        updatedAt: new Date(),
+      })
+      .where(eq(klineCache.id, existing.id));
+  } else {
+    return await db.insert(klineCache).values(cache);
+  }
+}
+
+// ============ AI Analyst Configs ============
 export async function getAiAnalystConfig(userId: number) {
   const db = await getDb();
-  if (!db) return null;
+  if (!db) return undefined;
+
   const result = await db
     .select()
     .from(aiAnalystConfigs)
     .where(eq(aiAnalystConfigs.userId, userId))
     .limit(1);
-  return result.length > 0 ? result[0] : null;
+
+  return result.length > 0 ? result[0] : undefined;
 }
 
-export async function createOrUpdateAiAnalystConfig(config: typeof aiAnalystConfigs.$inferInsert) {
+export async function upsertAiAnalystConfig(config: typeof aiAnalystConfigs.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return await db
-    .insert(aiAnalystConfigs)
-    .values(config)
-    .onDuplicateKeyUpdate({
-      set: {
-        apiType: config.apiType,
-        apiBaseUrl: config.apiBaseUrl,
+
+  const existing = await getAiAnalystConfig(config.userId!);
+  if (existing) {
+    return await db
+      .update(aiAnalystConfigs)
+      .set({
+        provider: config.provider,
+        model: config.model,
         apiKey: config.apiKey,
-        modelName: config.modelName,
-        systemPrompt: config.systemPrompt,
-        temperature: config.temperature,
-        maxTokens: config.maxTokens,
-        isEnabled: config.isEnabled,
-      },
-    });
+        baseUrl: config.baseUrl,
+        updatedAt: new Date(),
+      })
+      .where(eq(aiAnalystConfigs.id, existing.id));
+  } else {
+    return await db.insert(aiAnalystConfigs).values(config);
+  }
 }
 
 // ============ AI Analyst Reports ============
-export async function getAiAnalystReports(userId: number, contract?: string, limit = 20) {
+export async function getAiAnalystReports(userId: number, limit = 10, offset = 0) {
   const db = await getDb();
   if (!db) return [];
-  const conditions = [eq(aiAnalystReports.userId, userId)];
-  if (contract) {
-    conditions.push(eq(aiAnalystReports.contract, contract));
-  }
+
   return await db
     .select()
     .from(aiAnalystReports)
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .where(eq(aiAnalystReports.userId, userId))
     .orderBy(desc(aiAnalystReports.createdAt))
-    .limit(limit);
-}
-
-export async function getLatestAiAnalystReport(userId: number, contract: string) {
-  const db = await getDb();
-  if (!db) return null;
-  const result = await db
-    .select()
-    .from(aiAnalystReports)
-    .where(and(eq(aiAnalystReports.userId, userId), eq(aiAnalystReports.contract, contract)))
-    .orderBy(desc(aiAnalystReports.createdAt))
-    .limit(1);
-  return result.length > 0 ? result[0] : null;
+    .limit(limit)
+    .offset(offset);
 }
 
 export async function createAiAnalystReport(report: typeof aiAnalystReports.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+
   return await db.insert(aiAnalystReports).values(report);
 }
