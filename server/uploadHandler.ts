@@ -78,6 +78,11 @@ export async function handleUpload(req: Request, res: Response) {
         dataType = "supply"; // 统一映射为 supply 分类，对应 FLAME 中的 A 维度
       }
 
+      // 自动映射 M 维度指标 (以 futures 开头)
+      if (String(indicator).toLowerCase().startsWith("futures")) {
+        dataType = "sentiment"; // 统一映射为 sentiment 分类，对应 FLAME 中的 M 维度
+      }
+
       await createFundamentalData({
         indicator: String(indicator),
         value: value !== null ? String(value) : null,

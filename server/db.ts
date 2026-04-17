@@ -204,6 +204,10 @@ export async function getFundamentalData(
     if (dataType === "supply" || dataType === "A") {
       // 逻辑已在内存去重部分实现
     }
+    // 如果是市场情绪 (M) 维度，限定为 futures 开头的指标
+    if (dataType === "sentiment" || dataType === "M") {
+      // 逻辑已在内存去重部分实现
+    }
 
     const allData = await db
       .select()
@@ -249,6 +253,10 @@ export async function getFundamentalData(
       // 如果是债券供需维度，只保留指定的指标
       if (item.dataType === "supply" || item.dataType === "A") {
         if (!aIndicators.includes(item.indicator)) continue;
+      }
+      // 如果是市场情绪维度，只保留 futures 开头的指标
+      if (item.dataType === "sentiment" || item.dataType === "M") {
+        if (!item.indicator.toLowerCase().startsWith("futures")) continue;
       }
 
       const key = `${item.dataType}:${item.indicator}`;
