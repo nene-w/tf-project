@@ -237,31 +237,43 @@ export async function getFundamentalData(
       "中债国债到期收益率_5年", "中债_债券发行量_国债_当月值", "中债_债券发行量_地方政府债_当月值"
     ];
 
+    // 首先按指标分组，找到每个指标的最大日期
+    const indicatorGroups = new Map<string, typeof fundamentalData.$inferSelect[]>();
     for (const item of allData) {
-      // 如果是基本面维度，只保留指定的指标
+      // 维度过滤逻辑
       if (item.dataType === "macro" || item.dataType === "fundamental" || item.dataType === "F") {
         if (!fIndicators.includes(item.indicator)) continue;
-      }
-      // 如果是流动性维度，只保留指定的指标
-      if (item.dataType === "liquidity" || item.dataType === "L") {
+      } else if (item.dataType === "liquidity" || item.dataType === "L") {
         if (!lIndicators.includes(item.indicator)) continue;
-      }
-      // 如果是外部环境维度，只保留指定的指标
-      if (item.dataType === "external" || item.dataType === "E") {
+      } else if (item.dataType === "external" || item.dataType === "E") {
         if (!eIndicators.includes(item.indicator)) continue;
-      }
-      // 如果是债券供需维度，只保留指定的指标
-      if (item.dataType === "supply" || item.dataType === "A") {
+      } else if (item.dataType === "supply" || item.dataType === "A") {
         if (!aIndicators.includes(item.indicator)) continue;
-      }
-      // 如果是市场情绪维度，只保留 futures 开头的指标
-      if (item.dataType === "sentiment" || item.dataType === "M") {
+      } else if (item.dataType === "sentiment" || item.dataType === "M") {
         if (!item.indicator.toLowerCase().startsWith("futures")) continue;
       }
 
       const key = `${item.dataType}:${item.indicator}`;
-      if (!latestMap.has(key)) {
-        latestMap.set(key, item);
+      if (!indicatorGroups.has(key)) {
+        indicatorGroups.set(key, []);
+      }
+      indicatorGroups.get(key)!.push(item);
+    }
+
+    // 对每个指标组，只保留日期最新的记录
+    for (const [key, items] of indicatorGroups.entries()) {
+      if (items.length === 0) continue;
+      
+      // 找到该指标组中的最新日期
+      const maxDate = new Date(Math.max(...items.map(i => i.releaseDate?.getTime() || 0)));
+      
+      // 只保留日期等于最新日期的那条记录（如果有多个同日期的，取 id 最大的或 createdAt 最新的）
+      const latestItem = items
+        .filter(i => i.releaseDate?.getTime() === maxDate.getTime())
+        .sort((a, b) => (b.id || 0) - (a.id || 0))[0];
+      
+      if (latestItem) {
+        latestMap.set(key, latestItem);
       }
     }
 
