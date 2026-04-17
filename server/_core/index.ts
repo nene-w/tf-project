@@ -4,9 +4,11 @@ import { createServer } from "http";
 import { Server as SocketIOServer } from "socket.io";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
+import cors from "cors";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
+import { handleUpload, handleGetData } from "../uploadHandler";
 import { serveStatic, setupVite } from "./vite";
 import { tqService } from "../services/tqService";
 
@@ -84,8 +86,17 @@ async function startServer() {
   console.log("[Socket.IO] Initialized on path /api/socket.io");
 
   // ── Express 中间件 ────────────────────────────────────────────────────────
+  app.use(cors({
+    origin: "*",
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"]
+  }));
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+  // Custom REST API for local data upload
+  app.post("/api/upload", handleUpload);
+  app.get("/api/data", handleGetData);
 
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
