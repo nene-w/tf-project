@@ -219,7 +219,7 @@ export async function getFundamentalData(
     ];
     const eIndicators = [
       "美国_国债收益率_10年", "美国_国债收益率_2年", "美国_联邦基金利率",
-      "美国_美元指数", "美国_其他指标"
+      "美国_美元指数", "美国_其他指标", "人民币离岸价_USDCNH_收盘价"
     ];
 
     for (const item of allData) {

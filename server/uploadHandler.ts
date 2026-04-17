@@ -61,7 +61,7 @@ export async function handleUpload(req: Request, res: Response) {
 
       const eIndicators = [
         "美国_国债收益率_10年", "美国_国债收益率_2年", "美国_联邦基金利率",
-        "美国_美元指数", "美国_其他指标"
+        "美国_美元指数", "美国_其他指标", "人民币离岸价_USDCNH_收盘价"
       ];
       if (eIndicators.includes(String(indicator))) {
         dataType = "external"; // 统一映射为 external 分类，对应 FLAME 中的 E 维度
