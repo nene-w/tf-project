@@ -215,7 +215,10 @@ export async function getFundamentalData(
     const latestMap = new Map<string, typeof fundamentalData.$inferSelect>();
     const fIndicators = [
       "PPI_环比", "PMI", "PPI_当月同比", "CPI_当月同比", "CPI_环比",
-      "M1_同比", "M2_同比", "社会融资规模增量_当月值", "社会融资规模增量_当月同比"
+      "M1_同比", "M2_同比", "社会融资规模增量_当月值", "社会融资规模增量_当月同比",
+      "金融机构_人民币贷款_当月增加_住户_中长期", "金融机构_人民币贷款_当月增加_企事业单位_中长期贷款",
+      "金融机构_人民币贷款_当月增加_中长期贷款", "金融机构_人民币贷款_当月增加_短期贷款",
+      "金融机构_人民币贷款_当月增加_住户", "金融机构_人民币贷款_当月增加_企事业单位"
     ];
     const lIndicators = [
       "DR001", "DR007", "DR014", "DR1M", "货币投放量_逆回购",

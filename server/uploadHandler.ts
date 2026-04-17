@@ -45,7 +45,10 @@ export async function handleUpload(req: Request, res: Response) {
       // 自动映射 F 维度指标
       const fIndicators = [
         "PPI_环比", "PMI", "PPI_当月同比", "CPI_当月同比", "CPI_环比",
-        "M1_同比", "M2_同比", "社会融资规模增量_当月值", "社会融资规模增量_当月同比"
+        "M1_同比", "M2_同比", "社会融资规模增量_当月值", "社会融资规模增量_当月同比",
+        "金融机构_人民币贷款_当月增加_住户_中长期", "金融机构_人民币贷款_当月增加_企事业单位_中长期贷款",
+        "金融机构_人民币贷款_当月增加_中长期贷款", "金融机构_人民币贷款_当月增加_短期贷款",
+        "金融机构_人民币贷款_当月增加_住户", "金融机构_人民币贷款_当月增加_企事业单位"
       ];
       if (fIndicators.includes(String(indicator))) {
         dataType = "macro"; // 统一映射为 macro 分类，对应 FLAME 中的 F 维度
