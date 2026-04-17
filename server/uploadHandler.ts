@@ -59,6 +59,14 @@ export async function handleUpload(req: Request, res: Response) {
         dataType = "liquidity"; // 统一映射为 liquidity 分类，对应 FLAME 中的 L 维度
       }
 
+      const eIndicators = [
+        "美国_国债收益率_10年", "美国_国债收益率_2年", "美国_联邦基金利率",
+        "美国_美元指数", "美国_其他指标"
+      ];
+      if (eIndicators.includes(String(indicator))) {
+        dataType = "external"; // 统一映射为 external 分类，对应 FLAME 中的 E 维度
+      }
+
       await createFundamentalData({
         indicator: String(indicator),
         value: value !== null ? String(value) : null,

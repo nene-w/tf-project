@@ -196,6 +196,10 @@ export async function getFundamentalData(
     if (dataType === "liquidity" || dataType === "L") {
       // 逻辑已在内存去重部分实现
     }
+    // 如果是外部环境 (E) 维度，限定为用户指定的 5 个指标
+    if (dataType === "external" || dataType === "E") {
+      // 逻辑已在内存去重部分实现
+    }
 
     const allData = await db
       .select()
@@ -213,6 +217,10 @@ export async function getFundamentalData(
       "DR001", "DR007", "DR014", "DR1M", "货币投放量_逆回购",
       "逆回购_7日_回购利率", "中期借贷便利_MLF_余额", "中期借贷便利_MLF_操作金额_合计"
     ];
+    const eIndicators = [
+      "美国_国债收益率_10年", "美国_国债收益率_2年", "美国_联邦基金利率",
+      "美国_美元指数", "美国_其他指标"
+    ];
 
     for (const item of allData) {
       // 如果是基本面维度，只保留指定的指标
@@ -222,6 +230,10 @@ export async function getFundamentalData(
       // 如果是流动性维度，只保留指定的指标
       if (item.dataType === "liquidity" || item.dataType === "L") {
         if (!lIndicators.includes(item.indicator)) continue;
+      }
+      // 如果是外部环境维度，只保留指定的指标
+      if (item.dataType === "external" || item.dataType === "E") {
+        if (!eIndicators.includes(item.indicator)) continue;
       }
 
       const key = `${item.dataType}:${item.indicator}`;
