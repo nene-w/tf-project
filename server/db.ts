@@ -26,9 +26,9 @@ let _db: ReturnType<typeof drizzle> | null = null;
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+  if (!_db && ENV.databaseUrl) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
+      _db = drizzle(ENV.databaseUrl);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);
       _db = null;
@@ -181,22 +181,50 @@ export async function getFundamentalData(
   try {
     // 构建过滤条件：日期过滤 + 排除测试指标 + 可选的 dataType 过滤
     const conditions = [
-      gte(fundamentalData.releaseDate, new Date("2026-01-01")),
+      
       notLike(fundamentalData.indicator, "%测试%"),
     ];
     if (dataType) {
       conditions.push(eq(fundamentalData.dataType, dataType) as any);
     }
 
+    // 如果是基本面 (F) 维度，限定为用户指定的 9 个指标
+    if (dataType === "macro" || dataType === "fundamental" || dataType === "F") {
+      const fIndicators = [
+        "PPI_环比",
+        "PMI",
+        "PPI_当月同比",
+        "CPI_当月同比",
+        "CPI_环比",
+        "M1_同比",
+        "M2_同比",
+        "社会融资规模增量_当月值",
+        "社会融资规模增量_当月同比"
+      ];
+      // 注意：这里使用 inArray 需要从 drizzle-orm 导入，或者手动构建 or 条件
+      // 为了简单起见，我们直接在内存中过滤，或者在 SQL 中使用 inArray
+      // 这里先保持 SQL 查询，稍后在内存去重逻辑中确保只包含这些指标
+    }
+
     const allData = await db
       .select()
       .from(fundamentalData)
-      .where(and(...conditions))
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(fundamentalData.releaseDate));
 
     // 在内存中进行去重，保留每个 indicator 的最新记录
     const latestMap = new Map<string, typeof fundamentalData.$inferSelect>();
+    const fIndicators = [
+      "PPI_环比", "PMI", "PPI_当月同比", "CPI_当月同比", "CPI_环比",
+      "M1_同比", "M2_同比", "社会融资规模增量_当月值", "社会融资规模增量_当月同比"
+    ];
+
     for (const item of allData) {
+      // 如果是基本面维度，只保留指定的指标
+      if (item.dataType === "macro" || item.dataType === "fundamental" || item.dataType === "F") {
+        if (!fIndicators.includes(item.indicator)) continue;
+      }
+
       const key = `${item.dataType}:${item.indicator}`;
       if (!latestMap.has(key)) {
         latestMap.set(key, item);
@@ -709,7 +737,7 @@ export async function getAiAnalystReports(userId: number, contract?: string, lim
   return await db
     .select()
     .from(aiAnalystReports)
-    .where(and(...conditions))
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
     .orderBy(desc(aiAnalystReports.createdAt))
     .limit(limit);
 }

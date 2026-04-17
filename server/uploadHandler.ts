@@ -38,9 +38,18 @@ export async function handleUpload(req: Request, res: Response) {
     for (const row of data) {
       const indicator = row.indicator || row["指标名称"] || row["指标"];
       const value = row.value || row["指标值"] || row["数值"];
-      const dataType = row.dataType || row["数据分类"] || row["分类"] || "未分类";
+      let dataType = row.dataType || row["数据分类"] || row["分类"] || "未分类";
       
       if (!indicator || value === undefined) continue;
+
+      // 自动映射 F 维度指标
+      const fIndicators = [
+        "PPI_环比", "PMI", "PPI_当月同比", "CPI_当月同比", "CPI_环比",
+        "M1_同比", "M2_同比", "社会融资规模增量_当月值", "社会融资规模增量_当月同比"
+      ];
+      if (fIndicators.includes(String(indicator))) {
+        dataType = "macro"; // 统一映射为 macro 分类，对应 FLAME 中的 F 维度
+      }
 
       await createFundamentalData({
         indicator: String(indicator),
