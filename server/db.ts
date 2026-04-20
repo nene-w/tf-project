@@ -208,7 +208,8 @@ export async function createFundamentalData(data: typeof fundamentalData.$inferI
         and(
           eq(fundamentalData.indicator, finalData.indicator),
           eq(fundamentalData.dataType, finalData.dataType),
-          eq(fundamentalData.source, "LocalPush")
+          eq(fundamentalData.source, "LocalPush"),
+          eq(fundamentalData.releaseDate, finalData.releaseDate!)
         )
       )
       .limit(1);
@@ -219,7 +220,6 @@ export async function createFundamentalData(data: typeof fundamentalData.$inferI
         .set({
           value: finalData.value ?? null,
           unit: finalData.unit,
-          releaseDate: finalData.releaseDate,
           description: finalData.description,
           updatedAt: new Date(),
         })

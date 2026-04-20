@@ -25,6 +25,7 @@ export async function handleUpload(req: Request, res: Response) {
       data = parse(buffer, {
         columns: true,
         skip_empty_lines: true,
+        bom: true, // 处理可能的 BOM 头
       });
     } else {
       return res.status(400).json({ error: "Unsupported file format" });
@@ -34,20 +35,23 @@ export async function handleUpload(req: Request, res: Response) {
 
     let savedCount = 0;
     for (const row of data) {
-      const indicator = row.indicator || row["指标名称"] || row["指标"];
+      // 适配用户提供的新格式：time, value, index_name
+      // 同时保留对旧格式的兼容性
+      const indicator = row.index_name || row.Index_name || row.indicator || row["指标名称"] || row["指标"];
       const value = row.value || row["指标值"] || row["数值"];
-      let dataType = row.dataType || row["数据分类"] || row["分类"];
+      const releaseDateStr = row.time || row.releaseDate || row["发布日期"] || row["日期"];
       
       if (!indicator || value === undefined) continue;
 
       // 自动分类逻辑
+      let dataType = row.dataType || row["数据分类"] || row["分类"];
       if (!dataType) {
         const lowerFilename = filename.toLowerCase();
         const lowerIndicator = String(indicator).toLowerCase();
         
         if (lowerFilename.includes("futures") || lowerIndicator.startsWith("futures")) {
           dataType = "sentiment";
-        } else if (lowerFilename.includes("liquidity") || lowerIndicator.includes("dr0") || lowerIndicator.includes("逆回购") || lowerIndicator.includes("mlf")) {
+        } else if (lowerFilename.includes("liquidity") || lowerFilename.includes("macro_dr") || lowerIndicator.includes("dr0") || lowerIndicator.includes("逆回购") || lowerIndicator.includes("mlf")) {
           dataType = "liquidity";
         } else if (lowerFilename.includes("supply") || lowerIndicator.includes("国债到期收益率") || lowerIndicator.includes("发行量")) {
           dataType = "supply";
@@ -64,7 +68,7 @@ export async function handleUpload(req: Request, res: Response) {
         value: value !== null ? String(value) : null,
         unit: row.unit || row["单位"] || "",
         dataType: String(dataType),
-        releaseDate: row.releaseDate ? new Date(row.releaseDate) : new Date(),
+        releaseDate: releaseDateStr ? new Date(releaseDateStr) : new Date(),
         source: "LocalPush", // 统一标记，方便过滤旧数据
         description: row.description || row["描述"] || `Uploaded from ${filename}`,
       });
