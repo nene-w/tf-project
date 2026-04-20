@@ -1,12 +1,12 @@
 // @ts-nocheck
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, RefreshCw, BarChart3, TrendingUp, Activity, Globe, HeartPulse, Search, ArrowUpDown, Filter } from "lucide-react";
+import { Plus, RefreshCw, BarChart3, TrendingUp, Activity, Globe, HeartPulse, Search, ArrowUpDown, Filter, AlertCircle } from "lucide-react";
 import { Streamdown } from "streamdown";
 import { toast } from "sonner";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,28 +18,30 @@ export default function FundamentalAnalysis() {
   const [activeTab, setActiveTab] = useState("all");
   const [sortBy, setSortBy] = useState("date-desc");
 
+  // 强制初始化为空数组，确保没有旧数据残留
   const { data: analyses, refetch: refetchAnalyses } = trpc.fundamentalAnalysis.list.useQuery({
     limit: 50,
     offset: 0,
-  });
+  }, { initialData: [] });
 
-  const { data: fundamentalData, refetch: refetchData } = trpc.fundamentalData.list.useQuery({
-    limit: 200,
-  });
+  const { data: fundamentalData, refetch: refetchData, isLoading } = trpc.fundamentalData.list.useQuery({
+    limit: 500,
+  }, { initialData: [] });
+
+  // 调试信息：实时监控数据量
+  useEffect(() => {
+    console.log("[Debug] Current data count:", fundamentalData?.length);
+  }, [fundamentalData]);
 
   const refreshDataMutation = trpc.fundamentalData.refresh.useMutation({
     onSuccess: (result) => {
       setIsRefreshing(false);
-      if (result.success) {
-        refetchData();
-        toast.success(`成功刷新数据: ${result.message}`);
-      } else {
-        toast.error(result.message);
-      }
+      refetchData();
+      toast.success(`数据已同步: ${result.message}`);
     },
     onError: (err) => {
       setIsRefreshing(false);
-      toast.error("数据刷新失败: " + err.message);
+      toast.error("同步失败: " + err.message);
     }
   });
 
@@ -48,7 +50,7 @@ export default function FundamentalAnalysis() {
       setIsGenerating(false);
       refetchAnalyses();
       refetchData();
-      toast.success("FLAME 框架分析生成成功");
+      toast.success("分析报告已更新");
     },
     onError: (err) => {
       setIsGenerating(false);
@@ -69,22 +71,11 @@ export default function FundamentalAnalysis() {
     await refreshDataMutation.mutateAsync();
   };
 
-  const getRecommendationColor = (rec: string) => {
-    switch (rec) {
-      case "strong_buy": return "bg-green-500/10 text-green-600 border-green-500/20";
-      case "buy": return "bg-emerald-500/10 text-emerald-600 border-emerald-500/20";
-      case "hold": return "bg-amber-500/10 text-amber-600 border-amber-500/20";
-      case "sell": return "bg-orange-500/10 text-orange-600 border-orange-500/20";
-      case "strong_sell": return "bg-red-500/10 text-red-600 border-red-500/20";
-      default: return "bg-gray-500/10 text-gray-600 border-gray-500/20";
-    }
-  };
-
   const getDataTypeIcon = (type: string) => {
     switch (type) {
       case 'macro': return <BarChart3 className="w-4 h-4" />;
       case 'liquidity': return <Activity className="w-4 h-4" />;
-      case 'bond_market': return <TrendingUp className="w-4 h-4" />;
+      case 'supply': return <TrendingUp className="w-4 h-4" />;
       case 'sentiment': return <HeartPulse className="w-4 h-4" />;
       case 'external': return <Globe className="w-4 h-4" />;
       default: return <Activity className="w-4 h-4" />;
@@ -95,7 +86,7 @@ export default function FundamentalAnalysis() {
     switch (type) {
       case 'macro': return 'F: 基本面';
       case 'liquidity': return 'L: 流动性';
-      case 'bond_market': return 'A: 债券供需';
+      case 'supply': return 'A: 债券供需';
       case 'sentiment': return 'M: 市场情绪';
       case 'external': return 'E: 外部环境';
       default: return '其他指标';
@@ -105,17 +96,29 @@ export default function FundamentalAnalysis() {
   const filteredData = useMemo(() => {
     if (!fundamentalData) return [];
     
-    let result = [...fundamentalData];
+    // 强制类型转换，确保数据是数组
+    const rawData = Array.isArray(fundamentalData) ? fundamentalData : [];
+    let result = [...rawData];
 
     if (activeTab !== "all") {
-      result = result.filter(item => item.dataType === activeTab);
+      // 兼容前端分类映射
+      const tabMap = {
+        "macro": "macro",
+        "liquidity": "liquidity",
+        "bond_market": "supply",
+        "supply": "supply",
+        "sentiment": "sentiment",
+        "external": "external"
+      };
+      const targetType = tabMap[activeTab] || activeTab;
+      result = result.filter(item => item.dataType === targetType);
     }
 
     if (searchTerm) {
       const lowerSearch = searchTerm.toLowerCase();
       result = result.filter(item => 
         item.indicator.toLowerCase().includes(lowerSearch) || 
-        item.source.toLowerCase().includes(lowerSearch)
+        (item.source && item.source.toLowerCase().includes(lowerSearch))
       );
     }
 
@@ -130,18 +133,28 @@ export default function FundamentalAnalysis() {
   }, [fundamentalData, activeTab, searchTerm, sortBy]);
 
   const sortedAnalyses = useMemo(() => {
-    if (!analyses) return [];
+    if (!analyses || !Array.isArray(analyses)) return [];
     return [...analyses].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [analyses]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-accent/5">
+      {/* 强制置顶调试信息 */}
+      <div className="bg-yellow-500/10 border-b border-yellow-500/20 py-2 px-4 flex items-center justify-center gap-4 text-xs font-mono text-yellow-700">
+        <AlertCircle className="w-4 h-4" />
+        <span>[调试信息] 数据库指标总数: <b className="text-red-600">{fundamentalData?.length || 0}</b></span>
+        <span>|</span>
+        <span>当前过滤后显示: <b className="text-blue-600">{filteredData.length}</b></span>
+        <span>|</span>
+        <span>最新同步时间: {new Date().toLocaleTimeString()}</span>
+      </div>
+
       <div className="border-b border-border/50 backdrop-blur-sm sticky top-0 z-40 bg-background/80">
         <div className="container flex items-center justify-between h-16">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">基本面分析</h1>
             <p className="text-sm text-muted-foreground">
-              基于 AKShare 与 FLAME 框架的专业机构级国债市场洞察
+              仅展示本地推送的专业机构级国债市场洞察
             </p>
           </div>
           <div className="flex gap-3">
@@ -153,7 +166,7 @@ export default function FundamentalAnalysis() {
               className="hidden sm:flex"
             >
               <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-              {isRefreshing ? "刷新中..." : "刷新数据"}
+              {isRefreshing ? "同步中..." : "同步本地数据"}
             </Button>
             <Button
               className="button-primary"
@@ -175,7 +188,7 @@ export default function FundamentalAnalysis() {
                 <Activity className="w-5 h-5 text-primary" />
                 FLAME 核心指标
               </h2>
-              <Badge variant="secondary" className="font-mono">{fundamentalData?.length || 0} 指标</Badge>
+              <Badge variant="secondary" className="font-mono">{filteredData.length} 指标</Badge>
             </div>
 
             <Card className="p-4 space-y-4 bg-background/50 backdrop-blur-sm border-primary/10">
@@ -251,10 +264,17 @@ export default function FundamentalAnalysis() {
                   </div>
                 </Card>
               ))}
-              {filteredData.length === 0 && (
+              {filteredData.length === 0 && !isLoading && (
                 <div className="text-center py-20 text-muted-foreground border-2 border-dashed rounded-xl bg-muted/20">
                   <Filter className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                  <p>未找到匹配的指标数据</p>
+                  <p>未找到本地推送的指标数据</p>
+                  <p className="text-xs mt-2">请确保已运行本地上传脚本</p>
+                </div>
+              )}
+              {isLoading && (
+                <div className="text-center py-20 text-muted-foreground">
+                  <RefreshCw className="w-8 h-8 mx-auto mb-2 animate-spin opacity-20" />
+                  <p>正在加载数据...</p>
                 </div>
               )}
             </div>
@@ -268,71 +288,53 @@ export default function FundamentalAnalysis() {
             <div className="space-y-6">
               {sortedAnalyses.length === 0 ? (
                 <Card className="card-elegant p-12 text-center bg-background/50 backdrop-blur-sm">
-                  <div className="flex flex-col items-center">
-                    <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-                      <Activity className="w-8 h-8 text-primary" />
+                  <div className="max-w-sm mx-auto space-y-4">
+                    <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
+                      <BarChart3 className="w-8 h-8 text-primary" />
                     </div>
-                    <h3 className="text-xl font-semibold mb-2">开启专业分析</h3>
-                    <p className="text-muted-foreground max-w-sm mb-6">
-                      系统将利用 AKShare 抓取 F、L、A、M、E 五维实时数据，并由 AI 自动化生成深度报告。
+                    <h3 className="text-xl font-bold">暂无分析报告</h3>
+                    <p className="text-muted-foreground">
+                      点击右上角的“FLAME 自动化分析”按钮，基于最新的本地指标生成深度市场洞察。
                     </p>
-                    <Button onClick={handleGenerateFlame} disabled={isGenerating} className="px-8">
-                      立即生成首份报告
+                    <Button onClick={handleGenerateFlame} disabled={isGenerating}>
+                      {isGenerating ? "正在生成..." : "立即生成首份报告"}
                     </Button>
                   </div>
                 </Card>
               ) : (
-                sortedAnalyses.map((analysis, index) => (
-                  <Card key={analysis.id} className={`card-elegant p-6 overflow-hidden border-l-4 ${index === 0 ? 'border-l-primary shadow-lg ring-1 ring-primary/10' : 'border-l-transparent'}`}>
-                    {index === 0 && (
-                      <div className="mb-4">
-                        <Badge className="bg-primary text-primary-foreground text-[10px] uppercase tracking-tighter">最新报告</Badge>
-                      </div>
-                    )}
-                    <div className="flex flex-col md:flex-row md:items-start justify-between gap-4 mb-6">
-                      <div>
-                        <h3 className="text-xl font-bold mb-1 tracking-tight">{analysis.title}</h3>
-                        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                          <span className="flex items-center gap-1">
-                            <Activity className="w-3 h-3" />
-                            {new Date(analysis.createdAt).toLocaleString()}
-                          </span>
-                          <span>•</span>
-                          <span>有效期至: {new Date(analysis.validUntil).toLocaleDateString()}</span>
+                sortedAnalyses.map((analysis) => (
+                  <Card key={analysis.id} className="card-elegant overflow-hidden bg-background/50 backdrop-blur-sm">
+                    <div className="p-6 border-b border-border/50 bg-muted/30">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20">最新报告</Badge>
+                          <h3 className="text-xl font-bold tracking-tight">{analysis.title}</h3>
+                        </div>
+                        <div className="flex gap-2">
+                          <Badge variant="outline" className={getRecommendationColor(analysis.recommendation)}>
+                            {analysis.recommendation === 'strong_buy' ? '看多' : 
+                             analysis.recommendation === 'buy' ? '偏多' :
+                             analysis.recommendation === 'hold' ? '中性' :
+                             analysis.recommendation === 'sell' ? '偏空' : '看空'}
+                          </Badge>
+                          <Badge variant="outline" className="bg-gray-500/10 text-gray-600 border-gray-500/20">
+                            {analysis.riskLevel === 'low' ? '低风险' : 
+                             analysis.riskLevel === 'medium' ? '中风险' : '高风险'}
+                          </Badge>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className={`${getRecommendationColor(analysis.recommendation)} px-3 py-1 text-sm font-bold shadow-sm`}>
-                          {analysis.recommendation === 'strong_buy' ? '强烈看多' : 
-                           analysis.recommendation === 'buy' ? '看多' : 
-                           analysis.recommendation === 'hold' ? '中性' : 
-                           analysis.recommendation === 'sell' ? '看空' : '强烈看空'}
-                        </Badge>
-                        <Badge variant="secondary" className="px-3 py-1 font-medium">
-                          {analysis.riskLevel === 'high' ? '高风险' : analysis.riskLevel === 'medium' ? '中风险' : '低风险'}
-                        </Badge>
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <Activity className="w-3 h-3" />
+                          {new Date(analysis.createdAt).toLocaleString()}
+                        </span>
+                        <span>•</span>
+                        <span>有效期至: {new Date(new Date(analysis.createdAt).getTime() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString()}</span>
                       </div>
                     </div>
-
-                    <div className="prose prose-sm dark:prose-invert max-w-none bg-accent/5 p-6 rounded-xl border border-border/50 leading-relaxed shadow-inner">
-                      <Streamdown>{analysis.content as any}</Streamdown>
+                    <div className="p-8 prose prose-slate max-w-none dark:prose-invert prose-headings:font-bold prose-p:leading-relaxed">
+                      <Streamdown content={analysis.content} />
                     </div>
-
-                    {analysis.keyIndicators && (
-                      <div className="mt-6 pt-6 border-t border-border/50">
-                        <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-2">
-                          <BarChart3 className="w-3 h-3" />
-                          关联核心指标
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {(analysis.keyIndicators as string[]).map((indicator) => (
-                            <Badge key={indicator} variant="outline" className="bg-background/50 text-[10px] font-medium hover:bg-primary/5 transition-colors cursor-default">
-                              {indicator}
-                            </Badge>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </Card>
                 ))
               )}
