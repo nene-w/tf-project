@@ -40,18 +40,18 @@ export async function handleUpload(req: Request, res: Response) {
       
       if (!indicator || value === undefined) continue;
 
-      // 如果上传时没有指定分类，根据文件名或内容进行简单归类
+      // 自动分类逻辑
       if (!dataType) {
         const lowerFilename = filename.toLowerCase();
-        if (lowerFilename.includes("futures")) {
+        const lowerIndicator = String(indicator).toLowerCase();
+        
+        if (lowerFilename.includes("futures") || lowerIndicator.startsWith("futures")) {
           dataType = "sentiment";
-        } else if (lowerFilename.includes("macro") || lowerFilename.includes("fundamental")) {
-          dataType = "macro";
-        } else if (lowerFilename.includes("liquidity")) {
+        } else if (lowerFilename.includes("liquidity") || lowerIndicator.includes("dr0") || lowerIndicator.includes("逆回购") || lowerIndicator.includes("mlf")) {
           dataType = "liquidity";
-        } else if (lowerFilename.includes("supply")) {
+        } else if (lowerFilename.includes("supply") || lowerIndicator.includes("国债到期收益率") || lowerIndicator.includes("发行量")) {
           dataType = "supply";
-        } else if (lowerFilename.includes("external")) {
+        } else if (lowerFilename.includes("external") || lowerIndicator.includes("美国") || lowerIndicator.includes("usdcnh")) {
           dataType = "external";
         } else {
           dataType = "macro"; // 默认归类为基本面
